@@ -332,6 +332,90 @@ def _restore_commit(commit_id):
             f.write(data)
 
 
+def _resolve_commit(target):
+    if not target:
+        return _current_commit_id()
+
+    refs_path = os.path.join(_git_dir(), "refs", "heads", target)
+    if os.path.isfile(refs_path):
+        with open(refs_path, "r", encoding="utf-8") as ref_file:
+            return ref_file.read().strip() or None
+
+    if os.path.isfile(_object_path(target)):
+        return target
+
+    # allow abbreviated object IDs when unambiguous
+    for filename in os.listdir(os.path.join(_git_dir(), "objects")):
+        if filename.startswith(target):
+            return filename
+
+    return None
+
+
+def _write_index_from_tree(commit_id):
+    tree = _commit_tree(commit_id)
+    _write_index(tree)
+    return tree
+
+
+def _hard_reset_commit(commit_id):
+    tree = _commit_tree(commit_id)
+    index = _read_index()
+    tracked = set(index.keys())
+
+    _restore_commit(commit_id)
+    _write_index(tree)
+
+    # remove previously tracked files no longer present in target commit
+    for root, dirs, files in os.walk(os.getcwd(), topdown=False):
+        if ".git" in root.split(os.sep):
+            continue
+        for filename in files:
+            path = _normalize_path(os.path.relpath(os.path.join(root, filename), os.getcwd()))
+            if path in tracked and path not in tree:
+                os.remove(path)
+        if root != os.getcwd() and not os.listdir(root):
+            os.rmdir(root)
+
+
+def reset(args):
+    git_dir = _git_dir()
+    if not os.path.isdir(git_dir):
+        print("fatal: not a git repository (or any of the parent directories): .git")
+        return
+
+    mode = "mixed"
+    target = None
+    if args and args[0] in ("--soft", "--mixed", "--hard"):
+        mode = args[0][2:]
+        args = args[1:]
+
+    if args:
+        target = args[0]
+
+    commit_id = _resolve_commit(target)
+    if not commit_id:
+        print(f"fatal: ambiguous argument '{target}'")
+        return
+
+    if mode == "soft":
+        _write_head(commit_id)
+        print(f"Reset HEAD to {commit_id[:7]} (soft)")
+        return
+
+    if mode == "mixed":
+        _write_head(commit_id)
+        _write_index_from_tree(commit_id)
+        print(f"Reset HEAD to {commit_id[:7]} and updated index (mixed)")
+        return
+
+    if mode == "hard":
+        _write_head(commit_id)
+        _hard_reset_commit(commit_id)
+        print(f"Reset HEAD to {commit_id[:7]} and updated index and working tree (hard)")
+        return
+
+
 def checkout(args):
     git_dir = _git_dir()
     if not os.path.isdir(git_dir):
@@ -524,4 +608,4 @@ def print_welcome():
     project = os.path.basename(os.getcwd())
     print(f"Welcome to your tiny git tool for '{project}'!")
     print("Nothing important here — just a friendly hello.")
-    print("Use 'init' to create a repo, 'add' to stage files, 'rm' to remove paths, 'commit' to record changes, 'branch' to manage branches, 'checkout' to switch branches, and 'status', 'log', or 'diff' to inspect the repo.")
+    print("Use 'init' to create a repo, 'add' to stage files, 'rm' to remove paths, 'commit' to record changes, 'branch' to manage branches, 'checkout' and 'reset' to move around history, and 'status', 'log', or 'diff' to inspect the repo.")
