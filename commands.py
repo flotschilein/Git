@@ -301,6 +301,50 @@ def branch(args):
     print(f"Created branch {name} at {commit_id[:7]}")
 
 
+def _tags_dir():
+    return os.path.join(_git_dir(), "refs", "tags")
+
+
+def tag(args):
+    git_dir = _git_dir()
+    if not os.path.isdir(git_dir):
+        print("fatal: not a git repository (or any of the parent directories): .git")
+        return
+
+    tags_dir = _tags_dir()
+    os.makedirs(tags_dir, exist_ok=True)
+
+    if not args:
+        tags = []
+        for root, dirs, files in os.walk(tags_dir):
+            for filename in files:
+                tag_name = os.path.relpath(os.path.join(root, filename), tags_dir)
+                tags.append(tag_name)
+        for tag_name in sorted(tags):
+            print(tag_name)
+        return
+
+    name = args[0]
+    target = None
+    if len(args) > 1:
+        target = args[1]
+
+    commit_id = _resolve_commit(target)
+    if not commit_id:
+        print(f"fatal: ambiguous argument '{target}'")
+        return
+
+    tag_path = os.path.join(tags_dir, name)
+    if os.path.exists(tag_path):
+        print(f"fatal: tag '{name}' already exists")
+        return
+
+    os.makedirs(os.path.dirname(tag_path), exist_ok=True)
+    with open(tag_path, "w", encoding="utf-8") as tag_file:
+        tag_file.write(commit_id + "\n")
+    print(f"Created tag {name} at {commit_id[:7]}")
+
+
 def _commit_tree(commit_id):
     data = _read_object(commit_id)
     if data is None:
@@ -608,4 +652,4 @@ def print_welcome():
     project = os.path.basename(os.getcwd())
     print(f"Welcome to your tiny git tool for '{project}'!")
     print("Nothing important here — just a friendly hello.")
-    print("Use 'init' to create a repo, 'add' to stage files, 'rm' to remove paths, 'commit' to record changes, 'branch' to manage branches, 'checkout' and 'reset' to move around history, and 'status', 'log', or 'diff' to inspect the repo.")
+    print("Use 'init' to create a repo, 'add' to stage files, 'rm' to remove paths, 'tag' to create or list tags, 'commit' to record changes, 'branch' to manage branches, 'checkout' and 'reset' to move around history, and 'status', 'log', or 'diff' to inspect the repo.")
