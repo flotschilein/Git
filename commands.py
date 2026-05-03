@@ -345,6 +345,46 @@ def tag(args):
     print(f"Created tag {name} at {commit_id[:7]}")
 
 
+def _resolve_tag(target):
+    if not target:
+        return None
+    tag_path = os.path.join(_tags_dir(), target)
+    if os.path.isfile(tag_path):
+        with open(tag_path, "r", encoding="utf-8") as tag_file:
+            return tag_file.read().strip() or None
+    return None
+
+
+def show(args):
+    if not args:
+        print("usage: show <object> | <ref>")
+        return
+
+    name = args[0]
+    commit_id = _resolve_tag(name) or _resolve_commit(name)
+    if not commit_id:
+        print(f"fatal: ambiguous argument '{name}'")
+        return
+
+    data = _read_object(commit_id)
+    if data is None:
+        print(f"fatal: object {commit_id} not found")
+        return
+
+    text = data.decode("utf-8", errors="replace")
+    lines = text.splitlines()
+    if lines and (lines[0].startswith("parent ") or any(" " in line for line in lines if line and not line.startswith("parent "))):
+        print(f"commit {commit_id}")
+        for line in lines:
+            if line == "":
+                print()
+            else:
+                print(line)
+        return
+
+    print(text)
+
+
 def _commit_tree(commit_id):
     data = _read_object(commit_id)
     if data is None:
@@ -652,4 +692,4 @@ def print_welcome():
     project = os.path.basename(os.getcwd())
     print(f"Welcome to your tiny git tool for '{project}'!")
     print("Nothing important here — just a friendly hello.")
-    print("Use 'init' to create a repo, 'add' to stage files, 'rm' to remove paths, 'tag' to create or list tags, 'commit' to record changes, 'branch' to manage branches, 'checkout' and 'reset' to move around history, and 'status', 'log', or 'diff' to inspect the repo.")
+    print("Use 'init' to create a repo, 'add' to stage files, 'rm' to remove paths, 'tag' to create or list tags, 'show' to inspect refs or objects, 'commit' to record changes, 'branch' to manage branches, 'checkout' and 'reset' to move around history, and 'status', 'log', or 'diff' to inspect the repo.")
