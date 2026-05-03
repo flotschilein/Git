@@ -31,6 +31,25 @@ def _write_ref(repo_root, branch, commit_id):
         ref_file.write(commit_id + "\n")
 
 
+def _remote_ref_path(repo_root, remote_name, branch):
+    return os.path.join(_git_dir(repo_root), "refs", "remotes", remote_name, branch)
+
+
+def _read_remote_ref(repo_root, remote_name, branch):
+    ref_path = _remote_ref_path(repo_root, remote_name, branch)
+    if os.path.isfile(ref_path):
+        with open(ref_path, "r", encoding="utf-8") as ref_file:
+            return ref_file.read().strip() or None
+    return None
+
+
+def _write_remote_ref(repo_root, remote_name, branch, commit_id):
+    ref_path = _remote_ref_path(repo_root, remote_name, branch)
+    os.makedirs(os.path.dirname(ref_path), exist_ok=True)
+    with open(ref_path, "w", encoding="utf-8") as ref_file:
+        ref_file.write(commit_id + "\n")
+
+
 def _commit_parents(repo_root, commit_id):
     object_path = os.path.join(_git_dir(repo_root), "objects", commit_id)
     if not os.path.isfile(object_path):
@@ -204,3 +223,49 @@ def pull(args):
         return
 
     print("fatal: merge required but pull only supports fast-forward updates")
+
+
+def fetch(args):
+    if not args or len(args) > 2:
+        print("usage: fetch <repository> [branch]")
+        return
+
+    repository = args[0]
+    branch = args[1] if len(args) == 2 else _current_branch()
+
+    if not branch:
+        print("fatal: no branch specified and no current branch")
+        return
+
+    local_root = os.getcwd()
+    if not _is_git_repo(local_root):
+        print("fatal: not a git repository (or any of the parent directories): .git")
+        return
+
+    if not os.path.isdir(repository):
+        print(f"fatal: repository '{repository}' not found")
+        return
+
+    if not _is_git_repo(repository):
+        print(f"fatal: repository '{repository}' is not a git repository")
+        return
+
+    remote_commit = _read_ref(repository, branch)
+    if remote_commit is None:
+        print(f"fatal: branch '{branch}' not found on remote")
+        return
+
+    remote_name = os.path.basename(os.path.normpath(repository))
+    if remote_name.endswith(".git"):
+        remote_name = remote_name[:-4]
+    if not remote_name:
+        remote_name = "remote"
+
+    existing_remote_commit = _read_remote_ref(local_root, remote_name, branch)
+    if existing_remote_commit == remote_commit:
+        print("Already up to date.")
+        return
+
+    _copy_objects(repository, local_root)
+    _write_remote_ref(local_root, remote_name, branch, remote_commit)
+    print(f"Fetched branch '{branch}' from '{repository}'")
