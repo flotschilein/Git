@@ -2,6 +2,7 @@
 
 import difflib
 import os
+import shutil
 
 from git_repo import (
     init_repo,
@@ -631,6 +632,63 @@ def rm(args):
             print(f"removed {path}")
 
     return
+
+
+def mv(args):
+    git_dir = _git_dir()
+    if not os.path.isdir(git_dir):
+        print("fatal: not a git repository (or any of the parent directories): .git")
+        return
+
+    if not args or len(args) < 2:
+        print("usage: mv <source>... <destination>")
+        return
+
+    src_paths = [arg for arg in args[:-1]]
+    dst = args[-1]
+    index = _read_index()
+    moved = []
+
+    if len(src_paths) > 1:
+        if not os.path.isdir(dst):
+            print("fatal: destination is not a directory")
+            return
+
+    for src in src_paths:
+        src_normalized = _normalize_path(src)
+        src_path = src if os.path.isabs(src) else src_normalized
+        if not os.path.exists(src_path):
+            print(f"fatal: pathspec '{src}' did not match any files")
+            continue
+
+        if len(src_paths) > 1 or os.path.isdir(dst):
+            destination_path = os.path.join(dst, os.path.basename(src_path))
+        else:
+            destination_path = dst
+
+        if not os.path.isabs(destination_path):
+            destination_path = _normalize_path(destination_path)
+
+        destination_dir = os.path.dirname(destination_path)
+        if destination_dir and not os.path.isdir(destination_dir):
+            os.makedirs(destination_dir, exist_ok=True)
+
+        try:
+            shutil.move(src_path, destination_path)
+        except Exception as exc:
+            print(f"fatal: unable to move '{src}': {exc}")
+            continue
+
+        old_index_path = _normalize_path(os.path.relpath(src_path, os.getcwd()))
+        new_index_path = _normalize_path(os.path.relpath(destination_path, os.getcwd()))
+        if old_index_path in index:
+            index[new_index_path] = index.pop(old_index_path)
+        moved.append((old_index_path, new_index_path))
+
+    if moved:
+        _write_index(index)
+        for old_path, new_path in moved:
+            print(f"renamed {old_path} -> {new_path}")
 
 
 def diff(args):
