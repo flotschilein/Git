@@ -26,11 +26,59 @@ def _git_dir():
 
 
 def _index_path():
-    return os.path.join(_git_dir(), "index")
+    return os.path.join(_git_dir(), "tinygit_index")
 
 
 def _object_path(object_id):
     return os.path.join(_git_dir(), "objects", object_id)
+
+
+def _read_head():
+    head_path = os.path.join(_git_dir(), "HEAD")
+    if not os.path.isfile(head_path):
+        return None
+    with open(head_path, "r", encoding="utf-8") as f:
+        return f.read().strip()
+
+
+def _current_branch():
+    head = _read_head()
+    if head and head.startswith("ref: "):
+        return head.split("/")[-1]
+    return None
+
+
+def _current_commit_id():
+    head = _read_head()
+    if not head:
+        return None
+    if head.startswith("ref: "):
+        ref_path = os.path.join(_git_dir(), head[5:])
+        if os.path.isfile(ref_path):
+            with open(ref_path, "r", encoding="utf-8") as f:
+                return f.read().strip() or None
+        return None
+    return head
+
+
+def _write_head(commit_id):
+    head = _read_head()
+    if head and head.startswith("ref: "):
+        ref_path = os.path.join(_git_dir(), head[5:])
+        os.makedirs(os.path.dirname(ref_path), exist_ok=True)
+        with open(ref_path, "w", encoding="utf-8") as ref_file:
+            ref_file.write(commit_id + "\n")
+    else:
+        with open(os.path.join(_git_dir(), "HEAD"), "w", encoding="utf-8") as head_file:
+            head_file.write(commit_id + "\n")
+
+
+def _read_object(object_id):
+    object_path = _object_path(object_id)
+    if not os.path.isfile(object_path):
+        return None
+    with open(object_path, "rb") as obj_file:
+        return obj_file.read()
 
 
 def _normalize_path(path):
@@ -136,6 +184,84 @@ def add_paths(paths):
         print("nothing added to commit")
 
 
+def commit(message_args):
+    git_dir = _git_dir()
+    if not os.path.isdir(git_dir):
+        print("fatal: not a git repository (or any of the parent directories): .git")
+        return
+
+    if not message_args or message_args[0] != "-m" or len(message_args) == 1:
+        print("usage: commit -m <message>")
+        return
+
+    message = " ".join(message_args[1:]).strip()
+    if not message:
+        print("usage: commit -m <message>")
+        return
+
+    index = _read_index()
+    if not index:
+        print("nothing to commit")
+        return
+
+    parent = _current_commit_id()
+    contents = []
+    if parent:
+        contents.append(f"parent {parent}")
+    for path in sorted(index):
+        contents.append(f"{index[path]} {path}")
+    contents.append("")
+    contents.append(message)
+
+    data = "\n".join(contents).encode("utf-8")
+    commit_id = _store_object(data)
+    _write_head(commit_id)
+
+    branch = _current_branch() or "HEAD"
+    print(f"[{branch} {commit_id[:7]}] {message}")
+
+
+def log_history():
+    git_dir = _git_dir()
+    if not os.path.isdir(git_dir):
+        print("fatal: not a git repository (or any of the parent directories): .git")
+        return
+
+    commit_id = _current_commit_id()
+    if not commit_id:
+        print("fatal: no commits yet")
+        return
+
+    while commit_id:
+        data = _read_object(commit_id)
+        if data is None:
+            print(f"fatal: commit object {commit_id} not found")
+            return
+        text = data.decode("utf-8", errors="replace")
+        lines = text.splitlines()
+        parent = None
+        message_lines = []
+        reading_message = False
+        for line in lines:
+            if line == "":
+                reading_message = True
+                continue
+            if reading_message:
+                message_lines.append(line)
+            elif line.startswith("parent "):
+                parent = line.split(" ", 1)[1]
+
+        print(f"commit {commit_id}")
+        if message_lines:
+            for msg_line in message_lines:
+                print(f"    {msg_line}")
+        else:
+            print("    (no commit message)")
+        print()
+
+        commit_id = parent
+
+
 def repo_status():
     git_dir = _git_dir()
     if not os.path.isdir(git_dir):
@@ -186,4 +312,4 @@ def print_welcome():
     project = os.path.basename(os.getcwd())
     print(f"Welcome to your tiny git tool for '{project}'!")
     print("Nothing important here — just a friendly hello.")
-    print("Use 'init' to create a repo, 'add' to stage files, or 'status' to inspect the repo.")
+    print("Use 'init' to create a repo, 'add' to stage files, 'commit' to record changes, and 'status' or 'log' to inspect the repo.")
