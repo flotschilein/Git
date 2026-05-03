@@ -385,6 +385,180 @@ def show(args):
     print(text)
 
 
+def _commit_parents(commit_id):
+    data = _read_object(commit_id)
+    if data is None:
+        return []
+    parents = []
+    for line in data.decode("utf-8", errors="replace").splitlines():
+        if line.startswith("parent "):
+            parents.append(line.split(" ", 1)[1])
+        elif line == "":
+            break
+    return parents
+
+
+def _find_merge_base(a, b):
+    if a == b:
+        return a
+    ancestors = {a}
+    queue = [a]
+    while queue:
+        current = queue.pop(0)
+        for parent in _commit_parents(current):
+            if parent not in ancestors:
+                ancestors.add(parent)
+                queue.append(parent)
+
+    queue = [b]
+    visited = set()
+    while queue:
+        current = queue.pop(0)
+        if current in ancestors:
+            return current
+        visited.add(current)
+        for parent in _commit_parents(current):
+            if parent not in visited:
+                queue.append(parent)
+    return None
+
+
+def _restore_tree(tree):
+    for path, oid in tree.items():
+        if oid is None:
+            if os.path.isfile(path):
+                os.remove(path)
+            continue
+        data = _read_object(oid)
+        if data is None:
+            continue
+        dirpath = os.path.dirname(path)
+        if dirpath:
+            os.makedirs(dirpath, exist_ok=True)
+        with open(path, "wb") as f:
+            f.write(data)
+
+
+def _write_tree(tree):
+    _write_index({k: v for k, v in tree.items() if v is not None})
+    _restore_tree(tree)
+
+
+def merge(args):
+    git_dir = _git_dir()
+    if not os.path.isdir(git_dir):
+        print("fatal: not a git repository (or any of the parent directories): .git")
+        return
+
+    if not args:
+        print("usage: merge <branch>")
+        return
+
+    target = args[0]
+    target_commit = _resolve_tag(target) or _resolve_commit(target)
+    if not target_commit:
+        print(f"fatal: ambiguous argument '{target}'")
+        return
+
+    current_commit = _current_commit_id()
+    if not current_commit:
+        print("fatal: cannot merge without a current commit")
+        return
+
+    if current_commit == target_commit:
+        print("Already up to date.")
+        return
+
+    base_commit = _find_merge_base(current_commit, target_commit)
+    if base_commit == target_commit:
+        print("Already up to date.")
+        return
+
+    if base_commit == current_commit:
+        _write_head(target_commit)
+        _write_index_from_tree(target_commit)
+        _restore_commit(target_commit)
+        print(f"Fast-forwarded to {target}")
+        return
+
+    base_tree = _commit_tree(base_commit)
+    our_tree = _commit_tree(current_commit)
+    their_tree = _commit_tree(target_commit)
+
+    merged_tree = {}
+    conflicts = []
+    paths = sorted(set(base_tree) | set(our_tree) | set(their_tree))
+    for path in paths:
+        base_oid = base_tree.get(path)
+        our_oid = our_tree.get(path)
+        their_oid = their_tree.get(path)
+
+        if our_oid == their_oid:
+            merged_tree[path] = our_oid
+            continue
+
+        if our_oid == base_oid:
+            merged_tree[path] = their_oid
+            continue
+
+        if their_oid == base_oid:
+            merged_tree[path] = our_oid
+            continue
+
+        if our_oid is None:
+            merged_tree[path] = their_oid
+            continue
+
+        if their_oid is None:
+            merged_tree[path] = our_oid
+            continue
+
+        if our_oid and their_oid:
+            our_text = _read_object(our_oid).decode("utf-8", errors="replace").splitlines(True)
+            their_text = _read_object(their_oid).decode("utf-8", errors="replace").splitlines(True)
+            merged = []
+            merged.append("<<<<<<< OURS\n")
+            merged.extend(our_text)
+            if our_text and not our_text[-1].endswith("\n"):
+                merged.append("\n")
+            merged.append("=======\n")
+            merged.extend(their_text)
+            if their_text and not their_text[-1].endswith("\n"):
+                merged.append("\n")
+            merged.append(">>>>>>> THEIRS\n")
+            merged_content = "".join(merged).encode("utf-8")
+            merged_oid = _store_object(merged_content)
+            with open(path, "wb") as f:
+                f.write(merged_content)
+            merged_tree[path] = merged_oid
+            conflicts.append(path)
+            continue
+
+        merged_tree[path] = our_oid or their_oid
+
+    _write_tree(merged_tree)
+    if conflicts:
+        print("Automatic merge failed; fix conflicts and commit the result.")
+        for path in conflicts:
+            print(f"CONFLICT (content): Merge conflict in {path}")
+        return
+
+    parents = [current_commit, target_commit]
+    contents = [f"parent {p}" for p in parents]
+    for path in sorted(merged_tree):
+        oid = merged_tree[path]
+        if oid is not None:
+            contents.append(f"{oid} {path}")
+    contents.append("")
+    contents.append(f"Merge branch '{target}'")
+
+    commit_data = "\n".join(contents).encode("utf-8")
+    commit_id = _store_object(commit_data)
+    _write_head(commit_id)
+    _write_index({k: v for k, v in merged_tree.items() if v is not None})
+    print(f"Merge made by the simple merge strategy.\n[{commit_id[:7]}] Merge branch '{target}'")
+
+
 def _commit_tree(commit_id):
     data = _read_object(commit_id)
     if data is None:
@@ -692,4 +866,4 @@ def print_welcome():
     project = os.path.basename(os.getcwd())
     print(f"Welcome to your tiny git tool for '{project}'!")
     print("Nothing important here — just a friendly hello.")
-    print("Use 'init' to create a repo, 'add' to stage files, 'rm' to remove paths, 'tag' to create or list tags, 'show' to inspect refs or objects, 'commit' to record changes, 'branch' to manage branches, 'checkout' and 'reset' to move around history, and 'status', 'log', or 'diff' to inspect the repo.")
+    print("Use 'init' to create a repo, 'add' to stage files, 'rm' to remove paths, 'tag' to create or list tags, 'show' to inspect refs or objects, 'commit' to record changes, 'branch' to manage branches, 'checkout' and 'reset' to move around history, 'merge' to combine branches, and 'status', 'log', or 'diff' to inspect the repo.")

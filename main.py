@@ -3,7 +3,7 @@
 """Minimal welcome script for a lightweight custom git-like entrypoint."""
 
 import sys
-from commands import add_paths, branch, checkout, commit, diff, init_repo, log_history, print_welcome, repo_status, reset, rm, show, tag
+from commands import add_paths, branch, checkout, commit, diff, init_repo, log_history, merge, print_welcome, repo_status, reset, rm, show, tag
 
 
 def main():
@@ -33,9 +33,11 @@ def main():
             diff(sys.argv[2:])
         elif cmd == "show":
             show(sys.argv[2:])
+        elif cmd == "merge":
+            merge(sys.argv[2:])
         else:
             print(f"Unknown command: {cmd}")
-            print("Available commands: init, add, rm, tag, commit, branch, checkout, reset, status, log, diff, show")
+            print("Available commands: init, add, rm, tag, commit, branch, checkout, reset, merge, status, log, diff, show")
     else:
         print_welcome()
 
