@@ -4,7 +4,7 @@
 
 import sys
 from commands import add_paths, branch, checkout, commit, diff, init_repo, log_history, merge, print_welcome, repo_status, reset, rm, show, tag
-from network_cmds import clone, push, pull, fetch
+from network_cmds import clone, push, pull, fetch, remote
 
 
 def main():
@@ -44,9 +44,11 @@ def main():
             pull(sys.argv[2:])
         elif cmd == "fetch":
             fetch(sys.argv[2:])
+        elif cmd == "remote":
+            remote(sys.argv[2:])
         else:
             print(f"Unknown command: {cmd}")
-            print("Available commands: init, add, rm, tag, commit, branch, checkout, reset, merge, status, log, diff, show, clone, push, pull, fetch")
+            print("Available commands: init, add, rm, tag, commit, branch, checkout, reset, merge, status, log, diff, show, clone, push, pull, fetch, remote")
     else:
         print_welcome()
 
