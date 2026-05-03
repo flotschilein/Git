@@ -80,6 +80,85 @@ def add_paths(paths):
         print("nothing added to commit")
 
 
+def _config_path():
+    return os.path.join(_git_dir(), "config")
+
+
+def _read_config():
+    config_path = _config_path()
+    if not os.path.isfile(config_path):
+        return {}
+
+    config = {}
+    with open(config_path, "r", encoding="utf-8") as config_file:
+        for line in config_file:
+            line = line.strip()
+            if not line or line.startswith("#"):
+                continue
+            if "=" not in line:
+                continue
+            key, value = line.split("=", 1)
+            config[key.strip()] = value.strip()
+    return config
+
+
+def _write_config(config):
+    config_path = _config_path()
+    with open(config_path, "w", encoding="utf-8") as config_file:
+        for key in sorted(config):
+            config_file.write(f"{key} = {config[key]}\n")
+
+
+def config(args):
+    git_dir = _git_dir()
+    if not os.path.isdir(git_dir):
+        print("fatal: not a git repository (or any of the parent directories): .git")
+        return
+
+    if not args:
+        print("usage: config --list | --get <key> | --set <key> <value> | --unset <key>")
+        return
+
+    action = args[0]
+    cfg = _read_config()
+
+    if action == "--list":
+        for key in sorted(cfg):
+            print(f"{key} = {cfg[key]}")
+        return
+
+    if action == "--get":
+        if len(args) != 2:
+            print("usage: config --get <key>")
+            return
+        key = args[1]
+        if key in cfg:
+            print(cfg[key])
+        return
+
+    if action == "--set":
+        if len(args) < 3:
+            print("usage: config --set <key> <value>")
+            return
+        key = args[1]
+        value = " ".join(args[2:])
+        cfg[key] = value
+        _write_config(cfg)
+        return
+
+    if action == "--unset":
+        if len(args) != 2:
+            print("usage: config --unset <key>")
+            return
+        key = args[1]
+        if key in cfg:
+            del cfg[key]
+            _write_config(cfg)
+        return
+
+    print("usage: config --list | --get <key> | --set <key> <value> | --unset <key>")
+
+
 def commit(message_args):
     git_dir = _git_dir()
     if not os.path.isdir(git_dir):
