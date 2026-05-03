@@ -262,6 +262,44 @@ def log_history():
         commit_id = parent
 
 
+def branch(args):
+    git_dir = _git_dir()
+    if not os.path.isdir(git_dir):
+        print("fatal: not a git repository (or any of the parent directories): .git")
+        return
+
+    refs_dir = os.path.join(git_dir, "refs", "heads")
+    os.makedirs(refs_dir, exist_ok=True)
+
+    current = _current_branch()
+    if not args:
+        branches = []
+        for root, dirs, files in os.walk(refs_dir):
+            for filename in files:
+                branch_name = os.path.relpath(os.path.join(root, filename), refs_dir)
+                branches.append(branch_name)
+        for branch_name in sorted(branches):
+            prefix = "* " if branch_name == current else "  "
+            print(prefix + branch_name)
+        return
+
+    name = args[0]
+    commit_id = _current_commit_id()
+    if not commit_id:
+        print("fatal: cannot create branch with no commits yet")
+        return
+
+    branch_path = os.path.join(refs_dir, name)
+    if os.path.exists(branch_path):
+        print(f"fatal: branch '{name}' already exists")
+        return
+
+    os.makedirs(os.path.dirname(branch_path), exist_ok=True)
+    with open(branch_path, "w", encoding="utf-8") as ref_file:
+        ref_file.write(commit_id + "\n")
+    print(f"Created branch {name} at {commit_id[:7]}")
+
+
 def repo_status():
     git_dir = _git_dir()
     if not os.path.isdir(git_dir):
@@ -312,4 +350,4 @@ def print_welcome():
     project = os.path.basename(os.getcwd())
     print(f"Welcome to your tiny git tool for '{project}'!")
     print("Nothing important here — just a friendly hello.")
-    print("Use 'init' to create a repo, 'add' to stage files, 'commit' to record changes, and 'status' or 'log' to inspect the repo.")
+    print("Use 'init' to create a repo, 'add' to stage files, 'commit' to record changes, 'branch' to manage branches, and 'status' or 'log' to inspect the repo.")
