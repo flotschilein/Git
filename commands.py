@@ -519,6 +519,104 @@ def merge(args):
     print(f"Merge made by the simple merge strategy.\n[{commit_id[:7]}] Merge branch '{target}'")
 
 
+def stash(args):
+    git_dir = _git_dir()
+    if not os.path.isdir(git_dir):
+        print("fatal: not a git repository (or any of the parent directories): .git")
+        return
+
+    if not args:
+        print("usage: stash save [<message>] | stash list | stash pop")
+        return
+
+    subcommand = args[0]
+    stash_ref = os.path.join(git_dir, "refs", "stash")
+
+    if subcommand == "save":
+        message = " ".join(args[1:]).strip() or "WIP"
+        files = []
+        for root, dirs, filenames in os.walk(os.getcwd()):
+            if ".git" in root.split(os.sep):
+                continue
+            for filename in filenames:
+                files.append(os.path.join(root, filename))
+
+        contents = []
+        previous_stash = None
+        if os.path.isfile(stash_ref):
+            with open(stash_ref, "r", encoding="utf-8") as stash_file:
+                previous_stash = stash_file.read().strip() or None
+        if previous_stash:
+            contents.append(f"parent {previous_stash}")
+
+        for filepath in sorted(files):
+            relpath = _normalize_path(os.path.relpath(filepath, os.getcwd()))
+            with open(filepath, "rb") as f:
+                data = f.read()
+            oid = _store_object(data)
+            contents.append(f"{oid} {relpath}")
+
+        contents.append("")
+        contents.append(f"stash@{{0}}: WIP on {_current_branch() or 'HEAD'}: {message}")
+        stash_commit = _store_object("\n".join(contents).encode("utf-8"))
+        os.makedirs(os.path.dirname(stash_ref), exist_ok=True)
+        with open(stash_ref, "w", encoding="utf-8") as stash_file:
+            stash_file.write(stash_commit + "\n")
+        print(f"Saved working directory and index state WIP on {_current_branch() or 'HEAD'}: {message}")
+        return
+
+    if subcommand == "list":
+        if not os.path.isfile(stash_ref):
+            return
+
+        commit_id = open(stash_ref, "r", encoding="utf-8").read().strip()
+        index = 0
+        while commit_id:
+            print(f"stash@{{{index}}}: {commit_id[:7]}")
+            parents = _commit_parents(commit_id)
+            commit_id = parents[0] if parents else None
+            index += 1
+        return
+
+    if subcommand == "pop":
+        if not os.path.isfile(stash_ref):
+            print("No stash entries found.")
+            return
+
+        with open(stash_ref, "r", encoding="utf-8") as stash_file:
+            commit_id = stash_file.read().strip()
+        if not commit_id:
+            print("No stash entries found.")
+            return
+
+        stash_tree = _commit_tree(commit_id)
+        _restore_tree(stash_tree)
+        _write_index_from_tree(commit_id)
+
+        for root, dirs, files in os.walk(os.getcwd(), topdown=False):
+            if ".git" in root.split(os.sep):
+                continue
+            for filename in files:
+                path = _normalize_path(os.path.relpath(os.path.join(root, filename), os.getcwd()))
+                if path not in stash_tree:
+                    os.remove(os.path.join(root, filename))
+            if root != os.getcwd() and not os.listdir(root):
+                os.rmdir(root)
+
+        parents = _commit_parents(commit_id)
+        next_stash = parents[0] if parents else None
+        if next_stash:
+            with open(stash_ref, "w", encoding="utf-8") as stash_file:
+                stash_file.write(next_stash + "\n")
+        else:
+            os.remove(stash_ref)
+
+        print(f"Popped stash {commit_id[:7]}")
+        return
+
+    print("usage: stash save [<message>] | stash list | stash pop")
+
+
 def revert(args):
     git_dir = _git_dir()
     if not os.path.isdir(git_dir):
