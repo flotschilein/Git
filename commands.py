@@ -301,6 +301,67 @@ def branch(args):
     print(f"Created branch {name} at {commit_id[:7]}")
 
 
+def _commit_tree(commit_id):
+    data = _read_object(commit_id)
+    if data is None:
+        return {}
+    lines = data.decode("utf-8", errors="replace").splitlines()
+    tree = {}
+    for line in lines:
+        if line == "":
+            break
+        if line.startswith("parent "):
+            continue
+        parts = line.split(" ", 1)
+        if len(parts) == 2:
+            oid, path = parts
+            tree[path] = oid
+    return tree
+
+
+def _restore_commit(commit_id):
+    tree = _commit_tree(commit_id)
+    for path, oid in tree.items():
+        data = _read_object(oid)
+        if data is None:
+            continue
+        dirpath = os.path.dirname(path)
+        if dirpath:
+            os.makedirs(dirpath, exist_ok=True)
+        with open(path, "wb") as f:
+            f.write(data)
+
+
+def checkout(args):
+    git_dir = _git_dir()
+    if not os.path.isdir(git_dir):
+        print("fatal: not a git repository (or any of the parent directories): .git")
+        return
+
+    if not args:
+        print("usage: checkout <branch>")
+        return
+
+    name = args[0]
+    ref_path = os.path.join(git_dir, "refs", "heads", name)
+    if not os.path.isfile(ref_path):
+        print(f"fatal: invalid reference: {name}")
+        return
+
+    with open(ref_path, "r", encoding="utf-8") as ref_file:
+        commit_id = ref_file.read().strip()
+
+    if not commit_id:
+        print(f"fatal: branch '{name}' has no commits")
+        return
+
+    with open(os.path.join(git_dir, "HEAD"), "w", encoding="utf-8") as head_file:
+        head_file.write(f"ref: refs/heads/{name}\n")
+
+    _restore_commit(commit_id)
+    print(f"Switched to branch '{name}'")
+
+
 def repo_status():
     git_dir = _git_dir()
     if not os.path.isdir(git_dir):
@@ -418,4 +479,4 @@ def print_welcome():
     project = os.path.basename(os.getcwd())
     print(f"Welcome to your tiny git tool for '{project}'!")
     print("Nothing important here — just a friendly hello.")
-    print("Use 'init' to create a repo, 'add' to stage files, 'commit' to record changes, 'branch' to manage branches, and 'status', 'log', or 'diff' to inspect the repo.")
+    print("Use 'init' to create a repo, 'add' to stage files, 'commit' to record changes, 'branch' to manage branches, 'checkout' to switch branches, and 'status', 'log', or 'diff' to inspect the repo.")
