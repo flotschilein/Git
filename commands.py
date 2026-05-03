@@ -408,6 +408,51 @@ def repo_status():
         print("nothing to commit, working tree clean")
 
 
+def rm(args):
+    git_dir = _git_dir()
+    if not os.path.isdir(git_dir):
+        print("fatal: not a git repository (or any of the parent directories): .git")
+        return
+
+    if not args:
+        print("usage: rm <pathspec>...")
+        return
+
+    index = _read_index()
+    removed = []
+    for arg in args:
+        normalized = _normalize_path(arg)
+        if normalized == "":
+            normalized = "."
+
+        if os.path.isdir(normalized):
+            for root, dirs, files in os.walk(normalized, topdown=False):
+                if ".git" in root.split(os.sep):
+                    continue
+                for filename in files:
+                    path = _normalize_path(os.path.relpath(os.path.join(root, filename), os.getcwd()))
+                    if os.path.isfile(path):
+                        os.remove(path)
+                        removed.append(path)
+                        index.pop(path, None)
+                if not os.listdir(root):
+                    os.rmdir(root)
+        elif os.path.isfile(normalized):
+            path = _normalize_path(os.path.relpath(normalized, os.getcwd()))
+            os.remove(normalized)
+            removed.append(path)
+            index.pop(path, None)
+        else:
+            print(f"fatal: pathspec '{arg}' did not match any files")
+
+    _write_index(index)
+    if removed:
+        for path in sorted(removed):
+            print(f"removed {path}")
+
+    return
+
+
 def diff(args):
     git_dir = _git_dir()
     if not os.path.isdir(git_dir):
@@ -479,4 +524,4 @@ def print_welcome():
     project = os.path.basename(os.getcwd())
     print(f"Welcome to your tiny git tool for '{project}'!")
     print("Nothing important here — just a friendly hello.")
-    print("Use 'init' to create a repo, 'add' to stage files, 'commit' to record changes, 'branch' to manage branches, 'checkout' to switch branches, and 'status', 'log', or 'diff' to inspect the repo.")
+    print("Use 'init' to create a repo, 'add' to stage files, 'rm' to remove paths, 'commit' to record changes, 'branch' to manage branches, 'checkout' to switch branches, and 'status', 'log', or 'diff' to inspect the repo.")
