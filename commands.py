@@ -1,5 +1,6 @@
 """Simple command implementations for the tiny git tool."""
 
+import difflib
 import hashlib
 import os
 
@@ -346,8 +347,75 @@ def repo_status():
         print("nothing to commit, working tree clean")
 
 
+def diff(args):
+    git_dir = _git_dir()
+    if not os.path.isdir(git_dir):
+        print("fatal: not a git repository (or any of the parent directories): .git")
+        return
+
+    index = _read_index()
+    targets = []
+    if not args:
+        targets = sorted(index.keys())
+    else:
+        for arg in args:
+            normalized = _normalize_path(arg)
+            if normalized == "":
+                normalized = "."
+            if os.path.isfile(normalized):
+                targets.append(_normalize_path(os.path.relpath(normalized, os.getcwd())))
+            elif os.path.isdir(normalized):
+                for root, dirs, files in os.walk(normalized):
+                    if ".git" in root.split(os.sep):
+                        continue
+                    for filename in files:
+                        targets.append(_normalize_path(os.path.relpath(os.path.join(root, filename), os.getcwd())))
+            else:
+                print(f"fatal: pathspec '{arg}' did not match any files")
+        targets = sorted(set(targets))
+
+    if not targets:
+        print("nothing to diff")
+        return
+
+    any_diff = False
+    for path in targets:
+        old_lines = []
+        if path in index:
+            old_data = _read_object(index[path])
+            if old_data is not None:
+                old_lines = old_data.decode("utf-8", errors="replace").splitlines(True)
+
+        new_lines = []
+        if os.path.isfile(path):
+            with open(path, "rb") as f:
+                new_lines = f.read().decode("utf-8", errors="replace").splitlines(True)
+        else:
+            print(f"diff --git a/{path} b/{path}")
+            print(f"deleted file mode 100644")
+            any_diff = True
+            continue
+
+        if old_lines == new_lines:
+            continue
+
+        any_diff = True
+        diff_lines = difflib.unified_diff(
+            old_lines,
+            new_lines,
+            fromfile=f"a/{path}",
+            tofile=f"b/{path}",
+            lineterm=""
+        )
+        for line in diff_lines:
+            print(line)
+
+    if not any_diff:
+        return
+
+
 def print_welcome():
     project = os.path.basename(os.getcwd())
     print(f"Welcome to your tiny git tool for '{project}'!")
     print("Nothing important here — just a friendly hello.")
-    print("Use 'init' to create a repo, 'add' to stage files, 'commit' to record changes, 'branch' to manage branches, and 'status' or 'log' to inspect the repo.")
+    print("Use 'init' to create a repo, 'add' to stage files, 'commit' to record changes, 'branch' to manage branches, and 'status', 'log', or 'diff' to inspect the repo.")
