@@ -259,6 +259,49 @@ def branch(args):
             print(prefix + branch_name)
         return
 
+    delete_mode = None
+    if args[0] in ("-d", "-D", "--delete"):
+        if args[0] == "-D":
+            delete_mode = "forced"
+            args = args[1:]
+        elif args[0] == "--delete":
+            args = args[1:]
+            if args and args[0] in ("-f", "--force"):
+                delete_mode = "forced"
+                args = args[1:]
+        else:
+            delete_mode = "normal"
+            args = args[1:]
+
+        if len(args) != 1:
+            print("usage: branch -d <branch> | branch -D <branch> | branch --delete <branch> | branch --delete -f <branch>")
+            return
+
+        name = args[0]
+        branch_path = os.path.join(refs_dir, name)
+        if not os.path.isfile(branch_path):
+            print(f"fatal: branch '{name}' not found")
+            return
+
+        if current == name:
+            current_commit = _current_commit_id() or "unknown"
+            print(f"fatal: Cannot delete branch '{name}' checked out at {current_commit[:7]}")
+            return
+
+        os.remove(branch_path)
+        parent_dir = os.path.dirname(branch_path)
+        while parent_dir and parent_dir != refs_dir and parent_dir.startswith(refs_dir):
+            if os.listdir(parent_dir):
+                break
+            os.rmdir(parent_dir)
+            parent_dir = os.path.dirname(parent_dir)
+
+        if delete_mode == "forced":
+            print(f"Deleted branch {name} (forced)")
+        else:
+            print(f"Deleted branch {name}")
+        return
+
     name = args[0]
     commit_id = _current_commit_id()
     if not commit_id:
