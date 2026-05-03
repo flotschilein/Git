@@ -28,6 +28,7 @@ from git_repo import (
     _write_index_from_tree,
     _write_tree,
     _hard_reset_commit,
+    _commit_parents,
     _commit_tree,
 )
 
@@ -516,6 +517,157 @@ def merge(args):
     _write_head(commit_id)
     _write_index({k: v for k, v in merged_tree.items() if v is not None})
     print(f"Merge made by the simple merge strategy.\n[{commit_id[:7]}] Merge branch '{target}'")
+
+
+def revert(args):
+    git_dir = _git_dir()
+    if not os.path.isdir(git_dir):
+        print("fatal: not a git repository (or any of the parent directories): .git")
+        return
+
+    if len(args) != 1:
+        print("usage: revert <commit>")
+        return
+
+    target = args[0]
+    target_commit = _resolve_tag(target) or _resolve_commit(target)
+    if not target_commit:
+        print(f"fatal: ambiguous argument '{target}'")
+        return
+
+    current_commit = _current_commit_id()
+    if not current_commit:
+        print("fatal: no commits yet")
+        return
+
+    parent_commits = _commit_parents(target_commit)
+    base_commit = parent_commits[0] if parent_commits else None
+    base_tree = _commit_tree(base_commit) if base_commit else {}
+    target_tree = _commit_tree(target_commit)
+    current_tree = _commit_tree(current_commit)
+
+    revert_tree = dict(current_tree)
+    for path in sorted(set(base_tree) | set(target_tree)):
+        base_oid = base_tree.get(path)
+        target_oid = target_tree.get(path)
+
+        if base_oid == target_oid:
+            continue
+
+        if base_oid is None and target_oid is not None:
+            revert_tree.pop(path, None)
+            continue
+
+        revert_tree[path] = base_oid
+
+    for path in sorted(set(current_tree) - set(revert_tree)):
+        if os.path.isfile(path):
+            os.remove(path)
+
+    _write_tree(revert_tree)
+
+    message_lines = []
+    commit_text = _read_object(target_commit).decode("utf-8", errors="replace").splitlines()
+    reading_message = False
+    for line in commit_text:
+        if reading_message:
+            message_lines.append(line)
+        elif line == "":
+            reading_message = True
+
+    reverted_message = message_lines[0] if message_lines else target_commit
+    revert_message = f"Revert \"{reverted_message}\""
+
+    contents = [f"parent {current_commit}"]
+    for path in sorted(revert_tree):
+        oid = revert_tree[path]
+        if oid is not None:
+            contents.append(f"{oid} {path}")
+    contents.append("")
+    contents.append(revert_message)
+
+    commit_data = "\n".join(contents).encode("utf-8")
+    commit_id = _store_object(commit_data)
+    _write_head(commit_id)
+    print(f"[{_current_branch() or 'HEAD'} {commit_id[:7]}] {revert_message}")
+
+
+def clean(args):
+    git_dir = _git_dir()
+    if not os.path.isdir(git_dir):
+        print("fatal: not a git repository (or any of the parent directories): .git")
+        return
+
+    force = False
+    dry_run = False
+    remove_dirs = False
+    if not args:
+        print("usage: clean -f [-d] | clean -n [-d]")
+        return
+
+    for arg in args:
+        if arg == "-f":
+            force = True
+        elif arg == "-n":
+            dry_run = True
+        elif arg == "-d":
+            remove_dirs = True
+        else:
+            print("usage: clean -f [-d] | clean -n [-d]")
+            return
+
+    if not force and not dry_run:
+        print("usage: clean -f [-d] | clean -n [-d]")
+        return
+
+    index = _read_index()
+    tracked = set(index.keys())
+    untracked_files = []
+
+    for root, dirs, files in os.walk(os.getcwd()):
+        if ".git" in root.split(os.sep):
+            dirs[:] = []
+            continue
+        for filename in files:
+            path = _normalize_path(os.path.relpath(os.path.join(root, filename), os.getcwd()))
+            if path not in tracked:
+                untracked_files.append(path)
+
+    untracked_files.sort()
+    removed_dirs = []
+
+    if dry_run:
+        for path in untracked_files:
+            print(f"Would remove {path}")
+        if remove_dirs:
+            for root, dirs, files in os.walk(os.getcwd(), topdown=False):
+                if ".git" in root.split(os.sep):
+                    continue
+                if not os.listdir(root) and root != os.getcwd():
+                    removed_dirs.append(_normalize_path(os.path.relpath(root, os.getcwd())))
+            for path in sorted(removed_dirs):
+                print(f"Would remove directory {path}")
+        return
+
+    for path in untracked_files:
+        os.remove(path)
+        print(f"removed {path}")
+
+    if remove_dirs:
+        for root, dirs, files in os.walk(os.getcwd(), topdown=False):
+            if ".git" in root.split(os.sep):
+                continue
+            if not os.listdir(root) and root != os.getcwd():
+                try:
+                    os.rmdir(root)
+                    removed_dirs.append(_normalize_path(os.path.relpath(root, os.getcwd())))
+                except OSError:
+                    pass
+        for path in sorted(removed_dirs):
+            print(f"removed {path}")
+
+    if not untracked_files and not removed_dirs:
+        return
 
 
 def reset(args):
