@@ -4,7 +4,7 @@
 
 import sys
 from commands import add_paths, branch, checkout, commit, diff, init_repo, log_history, merge, print_welcome, repo_status, reset, rm, show, tag
-from network_cmds import clone
+from network_cmds import clone, push, pull
 
 
 def main():
@@ -38,9 +38,13 @@ def main():
             merge(sys.argv[2:])
         elif cmd == "clone":
             clone(sys.argv[2:])
+        elif cmd == "push":
+            push(sys.argv[2:])
+        elif cmd == "pull":
+            pull(sys.argv[2:])
         else:
             print(f"Unknown command: {cmd}")
-            print("Available commands: init, add, rm, tag, commit, branch, checkout, reset, merge, status, log, diff, show, clone")
+            print("Available commands: init, add, rm, tag, commit, branch, checkout, reset, merge, status, log, diff, show, clone, push, pull")
     else:
         print_welcome()
 
