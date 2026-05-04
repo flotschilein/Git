@@ -2599,6 +2599,85 @@ def hash_object(args):
     print(object_id)
 
 
+def count_objects(args):
+    git_dir = _git_dir()
+    if not os.path.isdir(git_dir):
+        print("fatal: not a git repository (or any of the parent directories): .git")
+        return
+
+    if args:
+        print("usage: count-objects")
+        return
+
+    object_dir = os.path.join(git_dir, "objects")
+    count = 0
+    size = 0
+    for root, dirs, files in os.walk(object_dir):
+        for filename in files:
+            filepath = os.path.join(root, filename)
+            if os.path.isfile(filepath):
+                count += 1
+                size += os.path.getsize(filepath)
+
+    print(f"count: {count}")
+    print(f"size: {size}")
+
+
+def pack_refs(args):
+    git_dir = _git_dir()
+    if not os.path.isdir(git_dir):
+        print("fatal: not a git repository (or any of the parent directories): .git")
+        return
+
+    if args:
+        print("usage: pack-refs")
+        return
+
+    refs_root = os.path.join(git_dir, "refs")
+    packed_path = os.path.join(git_dir, "packed-refs")
+    lines = []
+
+    for root, dirs, files in os.walk(refs_root):
+        for filename in files:
+            ref_path = os.path.join(root, filename)
+            with open(ref_path, "r", encoding="utf-8") as ref_file:
+                commit_id = ref_file.read().strip()
+            if not commit_id:
+                continue
+            ref_name = os.path.relpath(ref_path, git_dir)
+            lines.append(f"{commit_id} {ref_name}")
+
+    with open(packed_path, "w", encoding="utf-8") as packed_file:
+        packed_file.write("# pack-refs\n")
+        for line in sorted(lines):
+            packed_file.write(line + "\n")
+
+    print(f"packed {len(lines)} refs")
+
+
+def verify_tag(args):
+    git_dir = _git_dir()
+    if not os.path.isdir(git_dir):
+        print("fatal: not a git repository (or any of the parent directories): .git")
+        return
+
+    if len(args) != 1:
+        print("usage: verify-tag <tag>")
+        return
+
+    name = args[0]
+    tag_id = _resolve_tag(name)
+    if not tag_id:
+        print(f"error: tag '{name}' not found")
+        return
+
+    if _read_object(tag_id) is None:
+        print(f"error: missing object {tag_id} for tag '{name}'")
+        return
+
+    print(f"tag {name} verified")
+
+
 def help(args):
     print_welcome()
 
