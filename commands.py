@@ -37,10 +37,17 @@ from git_repo import (
 )
 
 
-def add_paths(paths):
+def _ensure_repo():
     git_dir = _git_dir()
     if not os.path.isdir(git_dir):
         print("fatal: not a git repository (or any of the parent directories): .git")
+        return None
+    return git_dir
+
+
+def add_paths(paths):
+    git_dir = _ensure_repo()
+    if not git_dir:
         return
 
     if not paths:
@@ -116,9 +123,8 @@ def _write_config(config):
 
 
 def config(args):
-    git_dir = _git_dir()
-    if not os.path.isdir(git_dir):
-        print("fatal: not a git repository (or any of the parent directories): .git")
+    git_dir = _ensure_repo()
+    if not git_dir:
         return
 
     if not args:
@@ -166,9 +172,8 @@ def config(args):
 
 
 def commit(message_args):
-    git_dir = _git_dir()
-    if not os.path.isdir(git_dir):
-        print("fatal: not a git repository (or any of the parent directories): .git")
+    git_dir = _ensure_repo()
+    if not git_dir:
         return
 
     if not message_args or message_args[0] != "-m" or len(message_args) == 1:
@@ -203,9 +208,8 @@ def commit(message_args):
 
 
 def log_history():
-    git_dir = _git_dir()
-    if not os.path.isdir(git_dir):
-        print("fatal: not a git repository (or any of the parent directories): .git")
+    git_dir = _ensure_repo()
+    if not git_dir:
         return
 
     commit_id = _current_commit_id()
@@ -244,9 +248,8 @@ def log_history():
 
 
 def branch(args):
-    git_dir = _git_dir()
-    if not os.path.isdir(git_dir):
-        print("fatal: not a git repository (or any of the parent directories): .git")
+    git_dir = _ensure_repo()
+    if not git_dir:
         return
 
     refs_dir = os.path.join(git_dir, "refs", "heads")
@@ -329,9 +332,8 @@ def _tags_dir():
 
 
 def tag(args):
-    git_dir = _git_dir()
-    if not os.path.isdir(git_dir):
-        print("fatal: not a git repository (or any of the parent directories): .git")
+    git_dir = _ensure_repo()
+    if not git_dir:
         return
 
     tags_dir = _tags_dir()
@@ -428,9 +430,8 @@ def show(args):
 
 
 def describe(args):
-    git_dir = _git_dir()
-    if not os.path.isdir(git_dir):
-        print("fatal: not a git repository (or any of the parent directories): .git")
+    git_dir = _ensure_repo()
+    if not git_dir:
         return
 
     if len(args) > 1:
@@ -597,9 +598,8 @@ def send_email(args):
 
 
 def merge(args):
-    git_dir = _git_dir()
-    if not os.path.isdir(git_dir):
-        print("fatal: not a git repository (or any of the parent directories): .git")
+    git_dir = _ensure_repo()
+    if not git_dir:
         return
 
     if not args:
@@ -712,9 +712,8 @@ def merge(args):
 
 
 def mergetool(args):
-    git_dir = _git_dir()
-    if not os.path.isdir(git_dir):
-        print("fatal: not a git repository (or any of the parent directories): .git")
+    git_dir = _ensure_repo()
+    if not git_dir:
         return
 
     path = args[0] if args else None
@@ -753,9 +752,8 @@ def _notes_dir():
 
 
 def notes(args):
-    git_dir = _git_dir()
-    if not os.path.isdir(git_dir):
-        print("fatal: not a git repository (or any of the parent directories): .git")
+    git_dir = _ensure_repo()
+    if not git_dir:
         return
 
     notes_dir = _notes_dir()
@@ -821,9 +819,8 @@ def notes(args):
 
 
 def stash(args):
-    git_dir = _git_dir()
-    if not os.path.isdir(git_dir):
-        print("fatal: not a git repository (or any of the parent directories): .git")
+    git_dir = _ensure_repo()
+    if not git_dir:
         return
 
     if not args:
@@ -959,9 +956,8 @@ def stash(args):
 
 
 def revert(args):
-    git_dir = _git_dir()
-    if not os.path.isdir(git_dir):
-        print("fatal: not a git repository (or any of the parent directories): .git")
+    git_dir = _ensure_repo()
+    if not git_dir:
         return
 
     if len(args) != 1:
@@ -1032,9 +1028,8 @@ def revert(args):
 
 
 def cherry_pick(args):
-    git_dir = _git_dir()
-    if not os.path.isdir(git_dir):
-        print("fatal: not a git repository (or any of the parent directories): .git")
+    git_dir = _ensure_repo()
+    if not git_dir:
         return
 
     if len(args) != 1:
@@ -1085,9 +1080,8 @@ def cherry_pick(args):
 
 
 def clean(args):
-    git_dir = _git_dir()
-    if not os.path.isdir(git_dir):
-        print("fatal: not a git repository (or any of the parent directories): .git")
+    git_dir = _ensure_repo()
+    if not git_dir:
         return
 
     force = False
@@ -1163,9 +1157,8 @@ def clean(args):
 
 
 def reset(args):
-    git_dir = _git_dir()
-    if not os.path.isdir(git_dir):
-        print("fatal: not a git repository (or any of the parent directories): .git")
+    git_dir = _ensure_repo()
+    if not git_dir:
         return
 
     mode = "mixed"
@@ -1201,9 +1194,8 @@ def reset(args):
 
 
 def checkout(args):
-    git_dir = _git_dir()
-    if not os.path.isdir(git_dir):
-        print("fatal: not a git repository (or any of the parent directories): .git")
+    git_dir = _ensure_repo()
+    if not git_dir:
         return
 
     if not args:
@@ -1231,9 +1223,8 @@ def checkout(args):
 
 
 def switch(args):
-    git_dir = _git_dir()
-    if not os.path.isdir(git_dir):
-        print("fatal: not a git repository (or any of the parent directories): .git")
+    git_dir = _ensure_repo()
+    if not git_dir:
         return
 
     if not args:
@@ -1272,9 +1263,8 @@ def switch(args):
 
 
 def restore(args):
-    git_dir = _git_dir()
-    if not os.path.isdir(git_dir):
-        print("fatal: not a git repository (or any of the parent directories): .git")
+    git_dir = _ensure_repo()
+    if not git_dir:
         return
 
     if not args:
@@ -1352,9 +1342,8 @@ def restore(args):
 
 
 def rebase(args):
-    git_dir = _git_dir()
-    if not os.path.isdir(git_dir):
-        print("fatal: not a git repository (or any of the parent directories): .git")
+    git_dir = _ensure_repo()
+    if not git_dir:
         return
 
     if len(args) != 1:
@@ -1429,9 +1418,8 @@ def rebase(args):
 
 
 def grep(args):
-    git_dir = _git_dir()
-    if not os.path.isdir(git_dir):
-        print("fatal: not a git repository (or any of the parent directories): .git")
+    git_dir = _ensure_repo()
+    if not git_dir:
         return
 
     if not args:
@@ -1471,9 +1459,8 @@ def grep(args):
 
 
 def reflog(args):
-    git_dir = _git_dir()
-    if not os.path.isdir(git_dir):
-        print("fatal: not a git repository (or any of the parent directories): .git")
+    git_dir = _ensure_repo()
+    if not git_dir:
         return
 
     if args:
@@ -1506,9 +1493,8 @@ def reflog(args):
 
 
 def blame(args):
-    git_dir = _git_dir()
-    if not os.path.isdir(git_dir):
-        print("fatal: not a git repository (or any of the parent directories): .git")
+    git_dir = _ensure_repo()
+    if not git_dir:
         return
 
     if len(args) != 1:
@@ -1533,9 +1519,8 @@ def blame(args):
 
 
 def repo_status():
-    git_dir = _git_dir()
-    if not os.path.isdir(git_dir):
-        print("fatal: not a git repository (or any of the parent directories): .git")
+    git_dir = _ensure_repo()
+    if not git_dir:
         return
 
     head_path = os.path.join(git_dir, "HEAD")
@@ -1579,9 +1564,8 @@ def repo_status():
 
 
 def rm(args):
-    git_dir = _git_dir()
-    if not os.path.isdir(git_dir):
-        print("fatal: not a git repository (or any of the parent directories): .git")
+    git_dir = _ensure_repo()
+    if not git_dir:
         return
 
     if not args:
@@ -1624,9 +1608,8 @@ def rm(args):
 
 
 def mv(args):
-    git_dir = _git_dir()
-    if not os.path.isdir(git_dir):
-        print("fatal: not a git repository (or any of the parent directories): .git")
+    git_dir = _ensure_repo()
+    if not git_dir:
         return
 
     if not args or len(args) < 2:
@@ -1681,9 +1664,8 @@ def mv(args):
 
 
 def diff(args):
-    git_dir = _git_dir()
-    if not os.path.isdir(git_dir):
-        print("fatal: not a git repository (or any of the parent directories): .git")
+    git_dir = _ensure_repo()
+    if not git_dir:
         return
 
     index = _read_index()
@@ -1748,9 +1730,8 @@ def diff(args):
 
 
 def archive(args):
-    git_dir = _git_dir()
-    if not os.path.isdir(git_dir):
-        print("fatal: not a git repository (or any of the parent directories): .git")
+    git_dir = _ensure_repo()
+    if not git_dir:
         return
 
     if not args:
@@ -1811,9 +1792,8 @@ def _collect_bundle_objects(commit_id, collected):
 
 
 def bundle(args):
-    git_dir = _git_dir()
-    if not os.path.isdir(git_dir):
-        print("fatal: not a git repository (or any of the parent directories): .git")
+    git_dir = _ensure_repo()
+    if not git_dir:
         return
 
     if not args or args[0] not in ("create", "list"):
@@ -1899,9 +1879,8 @@ def _collect_bundle_objects(commit_id, collected):
 
 
 def fsck(args):
-    git_dir = _git_dir()
-    if not os.path.isdir(git_dir):
-        print("fatal: not a git repository (or any of the parent directories): .git")
+    git_dir = _ensure_repo()
+    if not git_dir:
         return
 
     if args:
@@ -1929,9 +1908,8 @@ def fsck(args):
 
 
 def prune(args):
-    git_dir = _git_dir()
-    if not os.path.isdir(git_dir):
-        print("fatal: not a git repository (or any of the parent directories): .git")
+    git_dir = _ensure_repo()
+    if not git_dir:
         return
 
     if args:
@@ -2185,8 +2163,8 @@ def am(args):
 
 def bisect(args):
     git_dir = _git_dir()
-    if not os.path.isdir(git_dir):
-        print("fatal: not a git repository (or any of the parent directories): .git")
+    git_dir = _ensure_repo()
+    if not git_dir:
         return
 
     if not args:
@@ -2316,9 +2294,8 @@ def worktree(args):
 
 
 def shortlog(args):
-    git_dir = _git_dir()
-    if not os.path.isdir(git_dir):
-        print("fatal: not a git repository (or any of the parent directories): .git")
+    git_dir = _ensure_repo()
+    if not git_dir:
         return
 
     if args:
@@ -2342,9 +2319,8 @@ def shortlog(args):
 
 
 def whatchanged(args):
-    git_dir = _git_dir()
-    if not os.path.isdir(git_dir):
-        print("fatal: not a git repository (or any of the parent directories): .git")
+    git_dir = _ensure_repo()
+    if not git_dir:
         return
 
     if args:
@@ -2400,9 +2376,8 @@ def whatchanged(args):
 
 
 def difftool(args):
-    git_dir = _git_dir()
-    if not os.path.isdir(git_dir):
-        print("fatal: not a git repository (or any of the parent directories): .git")
+    git_dir = _ensure_repo()
+    if not git_dir:
         return
 
     if not args:
@@ -2415,9 +2390,8 @@ def difftool(args):
 
 
 def ls_files(args):
-    git_dir = _git_dir()
-    if not os.path.isdir(git_dir):
-        print("fatal: not a git repository (or any of the parent directories): .git")
+    git_dir = _ensure_repo()
+    if not git_dir:
         return
 
     if args:
@@ -2430,9 +2404,8 @@ def ls_files(args):
 
 
 def rev_parse(args):
-    git_dir = _git_dir()
-    if not os.path.isdir(git_dir):
-        print("fatal: not a git repository (or any of the parent directories): .git")
+    git_dir = _ensure_repo()
+    if not git_dir:
         return
 
     if not args:
@@ -2460,9 +2433,8 @@ def rev_parse(args):
 
 
 def cat_file(args):
-    git_dir = _git_dir()
-    if not os.path.isdir(git_dir):
-        print("fatal: not a git repository (or any of the parent directories): .git")
+    git_dir = _ensure_repo()
+    if not git_dir:
         return
 
     if len(args) != 2 or args[0] != "-p":
@@ -2496,9 +2468,8 @@ def print_welcome():
 
 
 def show_ref(args):
-    git_dir = _git_dir()
-    if not os.path.isdir(git_dir):
-        print("fatal: not a git repository (or any of the parent directories): .git")
+    git_dir = _ensure_repo()
+    if not git_dir:
         return
 
     if args and args[0] not in ("--heads", "--tags"):
@@ -2526,9 +2497,8 @@ def show_ref(args):
 
 
 def for_each_ref(args):
-    git_dir = _git_dir()
-    if not os.path.isdir(git_dir):
-        print("fatal: not a git repository (or any of the parent directories): .git")
+    git_dir = _ensure_repo()
+    if not git_dir:
         return
 
     pattern = args[0] if args else None
@@ -2547,9 +2517,8 @@ def for_each_ref(args):
 
 
 def ls_tree(args):
-    git_dir = _git_dir()
-    if not os.path.isdir(git_dir):
-        print("fatal: not a git repository (or any of the parent directories): .git")
+    git_dir = _ensure_repo()
+    if not git_dir:
         return
 
     target = args[0] if args else None
@@ -2567,9 +2536,8 @@ def ls_tree(args):
 
 
 def hash_object(args):
-    git_dir = _git_dir()
-    if not os.path.isdir(git_dir):
-        print("fatal: not a git repository (or any of the parent directories): .git")
+    git_dir = _ensure_repo()
+    if not git_dir:
         return
 
     if not args:
@@ -2600,9 +2568,8 @@ def hash_object(args):
 
 
 def update_index(args):
-    git_dir = _git_dir()
-    if not os.path.isdir(git_dir):
-        print("fatal: not a git repository (or any of the parent directories): .git")
+    git_dir = _ensure_repo()
+    if not git_dir:
         return
 
     if len(args) != 2 or args[0] not in ("--add", "--remove"):
@@ -2635,9 +2602,8 @@ def update_index(args):
 
 
 def write_tree(args):
-    git_dir = _git_dir()
-    if not os.path.isdir(git_dir):
-        print("fatal: not a git repository (or any of the parent directories): .git")
+    git_dir = _ensure_repo()
+    if not git_dir:
         return
 
     if args:
@@ -2653,9 +2619,8 @@ def write_tree(args):
 
 
 def commit_tree(args):
-    git_dir = _git_dir()
-    if not os.path.isdir(git_dir):
-        print("fatal: not a git repository (or any of the parent directories): .git")
+    git_dir = _ensure_repo()
+    if not git_dir:
         return
 
     if not args:
@@ -2708,9 +2673,8 @@ def commit_tree(args):
 
 
 def rev_list(args):
-    git_dir = _git_dir()
-    if not os.path.isdir(git_dir):
-        print("fatal: not a git repository (or any of the parent directories): .git")
+    git_dir = _ensure_repo()
+    if not git_dir:
         return
 
     if len(args) > 1:
@@ -2729,9 +2693,8 @@ def rev_list(args):
 
 
 def submodule(args):
-    git_dir = _git_dir()
-    if not os.path.isdir(git_dir):
-        print("fatal: not a git repository (or any of the parent directories): .git")
+    git_dir = _ensure_repo()
+    if not git_dir:
         return
 
     if not args or args[0] not in ("add", "status", "update"):
@@ -2781,11 +2744,9 @@ def submodule(args):
         print(f"Added submodule {destination} ({repository})")
 
 
-def help(args):
-    print_welcome()
-    git_dir = _git_dir()
-    if not os.path.isdir(git_dir):
-        print("fatal: not a git repository (or any of the parent directories): .git")
+def count_objects(args):
+    git_dir = _ensure_repo()
+    if not git_dir:
         return
 
     if args:
@@ -2807,9 +2768,8 @@ def help(args):
 
 
 def pack_refs(args):
-    git_dir = _git_dir()
-    if not os.path.isdir(git_dir):
-        print("fatal: not a git repository (or any of the parent directories): .git")
+    git_dir = _ensure_repo()
+    if not git_dir:
         return
 
     if args:
@@ -2839,9 +2799,8 @@ def pack_refs(args):
 
 
 def fast_export(args):
-    git_dir = _git_dir()
-    if not os.path.isdir(git_dir):
-        print("fatal: not a git repository (or any of the parent directories): .git")
+    git_dir = _ensure_repo()
+    if not git_dir:
         return
 
     if len(args) > 1:
@@ -2893,9 +2852,8 @@ def fast_export(args):
 
 
 def pack_objects(args):
-    git_dir = _git_dir()
-    if not os.path.isdir(git_dir):
-        print("fatal: not a git repository (or any of the parent directories): .git")
+    git_dir = _ensure_repo()
+    if not git_dir:
         return
 
     if len(args) != 1:
@@ -2917,9 +2875,8 @@ def pack_objects(args):
 
 
 def fast_import(args):
-    git_dir = _git_dir()
-    if not os.path.isdir(git_dir):
-        print("fatal: not a git repository (or any of the parent directories): .git")
+    git_dir = _ensure_repo()
+    if not git_dir:
         return
 
     if len(args) != 1:
@@ -2997,9 +2954,8 @@ def fast_import(args):
 
 
 def maintenance(args):
-    git_dir = _git_dir()
-    if not os.path.isdir(git_dir):
-        print("fatal: not a git repository (or any of the parent directories): .git")
+    git_dir = _ensure_repo()
+    if not git_dir:
         return
 
     if len(args) != 1 or args[0] != "run":
@@ -3063,9 +3019,8 @@ def cvsimport(args):
 
 
 def verify_tag(args):
-    git_dir = _git_dir()
-    if not os.path.isdir(git_dir):
-        print("fatal: not a git repository (or any of the parent directories): .git")
+    git_dir = _ensure_repo()
+    if not git_dir:
         return
 
     if len(args) != 1:
@@ -3086,9 +3041,8 @@ def verify_tag(args):
 
 
 def rerere(args):
-    git_dir = _git_dir()
-    if not os.path.isdir(git_dir):
-        print("fatal: not a git repository (or any of the parent directories): .git")
+    git_dir = _ensure_repo()
+    if not git_dir:
         return
 
     conflict_files = []
@@ -3114,9 +3068,8 @@ def rerere(args):
 
 
 def replace(args):
-    git_dir = _git_dir()
-    if not os.path.isdir(git_dir):
-        print("fatal: not a git repository (or any of the parent directories): .git")
+    git_dir = _ensure_repo()
+    if not git_dir:
         return
 
     if len(args) != 2:
@@ -3139,9 +3092,8 @@ def replace(args):
 
 
 def filter_branch(args):
-    git_dir = _git_dir()
-    if not os.path.isdir(git_dir):
-        print("fatal: not a git repository (or any of the parent directories): .git")
+    git_dir = _ensure_repo()
+    if not git_dir:
         return
 
     if len(args) < 3 or args[0] != "--msg-filter":
@@ -3189,9 +3141,8 @@ def filter_branch(args):
 
 
 def sparse_checkout(args):
-    git_dir = _git_dir()
-    if not os.path.isdir(git_dir):
-        print("fatal: not a git repository (or any of the parent directories): .git")
+    git_dir = _ensure_repo()
+    if not git_dir:
         return
 
     sparse_path = os.path.join(git_dir, "info", "sparse-checkout")
