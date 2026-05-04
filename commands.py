@@ -690,6 +690,59 @@ def revert(args):
     print(f"[{_current_branch() or 'HEAD'} {commit_id[:7]}] {revert_message}")
 
 
+def cherry_pick(args):
+    git_dir = _git_dir()
+    if not os.path.isdir(git_dir):
+        print("fatal: not a git repository (or any of the parent directories): .git")
+        return
+
+    if len(args) != 1:
+        print("usage: cherry-pick <commit>")
+        return
+
+    target = args[0]
+    target_commit = _resolve_tag(target) or _resolve_commit(target)
+    if not target_commit:
+        print(f"fatal: ambiguous argument '{target}'")
+        return
+
+    current_commit = _current_commit_id()
+    if not current_commit:
+        print("fatal: no commits yet")
+        return
+
+    data = _read_object(target_commit)
+    if data is None:
+        print(f"fatal: commit object {target_commit} not found")
+        return
+
+    lines = data.decode("utf-8", errors="replace").splitlines()
+    tree_lines = []
+    message_lines = []
+    reading_message = False
+    for line in lines:
+        if line == "":
+            reading_message = True
+            continue
+        if reading_message:
+            message_lines.append(line)
+        elif not line.startswith("parent "):
+            tree_lines.append(line)
+
+    commit_message = "\n".join(message_lines)
+    contents = [f"parent {current_commit}"]
+    contents.extend(tree_lines)
+    contents.append("")
+    if commit_message:
+        contents.append(commit_message)
+
+    new_commit_id = _store_object("\n".join(contents).encode("utf-8"))
+    _write_head(new_commit_id)
+    _write_index_from_tree(new_commit_id)
+    _restore_commit(new_commit_id)
+    print(f"[{_current_branch() or 'HEAD'} {new_commit_id[:7]}] cherry-picked {target_commit[:7]}")
+
+
 def clean(args):
     git_dir = _git_dir()
     if not os.path.isdir(git_dir):
