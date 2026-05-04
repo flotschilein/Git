@@ -1,8 +1,10 @@
 """Simple command implementations for the tiny git tool."""
 
 import difflib
+import io
 import os
 import shutil
+import tarfile
 
 from git_repo import (
     init_repo,
@@ -1417,6 +1419,50 @@ def diff(args):
 
     if not any_diff:
         return
+
+
+def archive(args):
+    git_dir = _git_dir()
+    if not os.path.isdir(git_dir):
+        print("fatal: not a git repository (or any of the parent directories): .git")
+        return
+
+    if not args:
+        print("usage: archive <file> [<commit>]")
+        return
+
+    archive_path = args[0]
+    target = args[1] if len(args) > 1 else None
+
+    if target:
+        commit_id = _resolve_tag(target) or _resolve_commit(target)
+        if not commit_id:
+            print(f"fatal: ambiguous argument '{target}'")
+            return
+        tree = _commit_tree(commit_id)
+        items = [(path, _read_object(oid)) for path, oid in sorted(tree.items()) if oid is not None]
+    else:
+        items = []
+        for root, dirs, files in os.walk(os.getcwd()):
+            if ".git" in root.split(os.sep):
+                continue
+            for filename in files:
+                filepath = os.path.join(root, filename)
+                relpath = _normalize_path(os.path.relpath(filepath, os.getcwd()))
+                with open(filepath, "rb") as f:
+                    items.append((relpath, f.read()))
+
+    try:
+        with tarfile.open(archive_path, "w:gz") as tar:
+            for relpath, data in items:
+                tarinfo = tarfile.TarInfo(name=relpath)
+                tarinfo.size = len(data)
+                tarinfo.mtime = int(os.path.getmtime(os.path.join(os.getcwd(), relpath))) if not target else 0
+                tarinfo.mode = 0o644
+                tar.addfile(tarinfo, fileobj=io.BytesIO(data))
+        print(f"created archive {archive_path}")
+    except Exception as exc:
+        print(f"fatal: could not create archive: {exc}")
 
 
 def print_welcome():
