@@ -1635,6 +1635,115 @@ def bundle(args):
             print(f"fatal: could not create bundle: {exc}")
 
 
+def _collect_bundle_objects(commit_id, collected):
+    if commit_id in collected:
+        return
+    data = _read_object(commit_id)
+    if data is None:
+        return
+    collected.add(commit_id)
+
+    lines = data.decode("utf-8", errors="replace").splitlines()
+    for line in lines:
+        if line.startswith("parent "):
+            _collect_bundle_objects(line.split(" ", 1)[1], collected)
+        elif line == "":
+            break
+        elif " " in line:
+            oid, _ = line.split(" ", 1)
+            _collect_bundle_objects(oid, collected)
+
+
+def fsck(args):
+    git_dir = _git_dir()
+    if not os.path.isdir(git_dir):
+        print("fatal: not a git repository (or any of the parent directories): .git")
+        return
+
+    if args:
+        print("usage: fsck")
+        return
+
+    errors = False
+    refs_root = os.path.join(git_dir, "refs")
+    for root, dirs, files in os.walk(refs_root):
+        for filename in files:
+            ref_path = os.path.join(root, filename)
+            with open(ref_path, "r", encoding="utf-8") as ref_file:
+                commit_id = ref_file.read().strip()
+            if commit_id and _read_object(commit_id) is None:
+                print(f"error: missing object {commit_id} for ref {os.path.relpath(ref_path, git_dir)}")
+                errors = True
+
+    head = _read_head()
+    if head and not head.startswith("ref: ") and _read_object(head) is None:
+        print(f"error: missing object {head} for HEAD")
+        errors = True
+
+    if not errors:
+        print("fsck complete")
+
+
+def prune(args):
+    git_dir = _git_dir()
+    if not os.path.isdir(git_dir):
+        print("fatal: not a git repository (or any of the parent directories): .git")
+        return
+
+    if args:
+        print("usage: prune")
+        return
+
+    def collect(commit_id, collected):
+        if not commit_id or commit_id in collected:
+            return
+        data = _read_object(commit_id)
+        if data is None:
+            return
+        collected.add(commit_id)
+        lines = data.decode("utf-8", errors="replace").splitlines()
+        for line in lines:
+            if line.startswith("parent "):
+                collect(line.split(" ", 1)[1], collected)
+            elif line == "":
+                break
+            elif " " in line:
+                oid, _ = line.split(" ", 1)
+                collect(oid, collected)
+
+    reachable = set()
+    refs_root = os.path.join(git_dir, "refs")
+    for root, dirs, files in os.walk(refs_root):
+        for filename in files:
+            ref_path = os.path.join(root, filename)
+            with open(ref_path, "r", encoding="utf-8") as ref_file:
+                commit_id = ref_file.read().strip()
+            if commit_id:
+                collect(commit_id, reachable)
+
+    head = _read_head()
+    if head and not head.startswith("ref: "):
+        collect(head, reachable)
+
+    stash_ref = os.path.join(git_dir, "refs", "stash")
+    if os.path.isfile(stash_ref):
+        with open(stash_ref, "r", encoding="utf-8") as stash_file:
+            stash_commit = stash_file.read().strip()
+        if stash_commit:
+            collect(stash_commit, reachable)
+
+    objects_dir = os.path.join(git_dir, "objects")
+    removed = []
+    for root, dirs, files in os.walk(objects_dir):
+        for filename in files:
+            if filename not in reachable:
+                os.remove(os.path.join(root, filename))
+                removed.append(filename)
+
+    for oid in sorted(removed):
+        print(f"pruned {oid}")
+
+
 def _bisect_dir():
     return os.path.join(_git_dir(), "bisect")
 
