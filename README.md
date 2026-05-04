@@ -41,9 +41,3 @@ This project implements many Git-like command names (porcelain and plumbing). Ru
 
 Contributions and improvements are welcome. This is an educational project — please open issues or PRs with small, focused changes.
 
-## License
-
-MIT License — see `LICENSE` (not included). Feel free to add a LICENSE file if you intend to publish.
-
-
-Enjoy exploring the code!
