@@ -461,6 +461,141 @@ def describe(args):
         print(commit_id[:7])
 
 
+def _blob_lines(oid):
+    if not oid:
+        return []
+    data = _read_object(oid)
+    if data is None:
+        return []
+    return data.decode("utf-8", errors="replace").splitlines(True)
+
+
+def format_patch(args):
+    if len(args) != 1:
+        print("usage: format-patch <commit>")
+        return
+
+    target = args[0]
+    commit_id = _resolve_tag(target) or _resolve_commit(target)
+    if not commit_id:
+        print(f"fatal: ambiguous argument '{target}'")
+        return
+
+    data = _read_object(commit_id)
+    if data is None:
+        print(f"fatal: commit object {commit_id} not found")
+        return
+
+    lines = data.decode("utf-8", errors="replace").splitlines()
+    parents = []
+    message_lines = []
+    reading_message = False
+    for line in lines:
+        if line == "":
+            reading_message = True
+            continue
+        if reading_message:
+            message_lines.append(line)
+        elif line.startswith("parent "):
+            parents.append(line.split(" ", 1)[1])
+
+    subject = message_lines[0] if message_lines else commit_id[:7]
+    filename = f"0001-{subject.replace(' ', '-').replace('/', '-')}.patch"
+    parent_commit = parents[0] if parents else None
+    base_tree = _commit_tree(parent_commit) if parent_commit else {}
+    commit_tree = _commit_tree(commit_id)
+    paths = sorted(set(base_tree) | set(commit_tree))
+
+    patch_lines = []
+    patch_lines.append(f"From {commit_id}")
+    patch_lines.append("From: tinygit <noreply@example.com>")
+    patch_lines.append(f"Subject: [PATCH] {subject}")
+    patch_lines.append("")
+    patch_lines.extend(message_lines)
+    patch_lines.append("")
+
+    for path in paths:
+        base_oid = base_tree.get(path)
+        new_oid = commit_tree.get(path)
+        if base_oid == new_oid:
+            continue
+
+        old_lines = _blob_lines(base_oid)
+        new_lines = _blob_lines(new_oid)
+        patch_lines.append(f"diff --git a/{path} b/{path}")
+        if base_oid is None:
+            patch_lines.append(f"new file mode 100644")
+        elif new_oid is None:
+            patch_lines.append(f"deleted file mode 100644")
+        patch_lines.extend(difflib.unified_diff(old_lines, new_lines, fromfile=f"a/{path}", tofile=f"b/{path}", lineterm=""))
+        patch_lines.append("")
+
+    try:
+        with open(filename, "w", encoding="utf-8", newline="") as f:
+            f.write("\n".join(patch_lines).rstrip("\n") + "\n")
+        print(f"Wrote patch {filename}")
+    except Exception as exc:
+        print(f"fatal: could not write patch: {exc}")
+
+
+def request_pull(args):
+    if len(args) not in (2, 3):
+        print("usage: request-pull <start> <url> [<head>]")
+        return
+
+    start = args[0]
+    url = args[1]
+    head = args[2] if len(args) == 3 else _current_branch()
+    if not head:
+        print("fatal: no HEAD or branch specified")
+        return
+
+    start_commit = _resolve_tag(start) or _resolve_commit(start)
+    head_commit = _resolve_tag(head) or _resolve_commit(head)
+    if not start_commit:
+        print(f"fatal: ambiguous argument '{start}'")
+        return
+    if not head_commit:
+        print(f"fatal: ambiguous argument '{head}'")
+        return
+
+    path = _bisect_path(head_commit, start_commit)
+    if not path or path[-1] != start_commit:
+        print("fatal: start is not an ancestor of head")
+        return
+
+    commits = list(reversed(path))
+    summary = _read_object(head_commit).decode("utf-8", errors="replace").splitlines()[-1] if _read_object(head_commit) else head_commit[:7]
+    print(f"The following changes since {start_commit[:7]} ({start}) to {head_commit[:7]} ({head}) are available in {url}:")
+    print(f"  {url}")
+    print()
+    for commit_id in commits[1:]:
+        data = _read_object(commit_id)
+        if not data:
+            continue
+        message = data.decode("utf-8", errors="replace").splitlines()
+        subject = message[-1] if message else commit_id[:7]
+        print(f"  {commit_id[:7]} {subject}")
+
+
+def send_email(args):
+    if len(args) != 1:
+        print("usage: send-email <patch-file>")
+        return
+
+    patch_file = args[0]
+    if not os.path.isfile(patch_file):
+        print(f"fatal: patch file '{patch_file}' not found")
+        return
+
+    print(f"Sending email for {patch_file}")
+    with open(patch_file, "r", encoding="utf-8", errors="replace") as f:
+        for line in f:
+            if line.startswith("Subject:"):
+                print(line.rstrip())
+                break
+
+
 def merge(args):
     git_dir = _git_dir()
     if not os.path.isdir(git_dir):
