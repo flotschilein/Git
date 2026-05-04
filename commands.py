@@ -2315,6 +2315,105 @@ def worktree(args):
         return
 
 
+def shortlog(args):
+    git_dir = _git_dir()
+    if not os.path.isdir(git_dir):
+        print("fatal: not a git repository (or any of the parent directories): .git")
+        return
+
+    if args:
+        print("usage: shortlog")
+        return
+
+    commit_id = _current_commit_id()
+    if not commit_id:
+        print("fatal: no commits yet")
+        return
+
+    while commit_id:
+        data = _read_object(commit_id)
+        if data is None:
+            break
+        lines = data.decode("utf-8", errors="replace").splitlines()
+        subject = lines[-1] if lines else commit_id[:7]
+        print(f"{commit_id[:7]} {subject}")
+        parents = _commit_parents(commit_id)
+        commit_id = parents[0] if parents else None
+
+
+def whatchanged(args):
+    git_dir = _git_dir()
+    if not os.path.isdir(git_dir):
+        print("fatal: not a git repository (or any of the parent directories): .git")
+        return
+
+    if args:
+        print("usage: whatchanged")
+        return
+
+    commit_id = _current_commit_id()
+    if not commit_id:
+        print("fatal: no commits yet")
+        return
+
+    while commit_id:
+        data = _read_object(commit_id)
+        if data is None:
+            break
+        lines = data.decode("utf-8", errors="replace").splitlines()
+        message = ""
+        parents = []
+        tree = {}
+        reading_message = False
+        for line in lines:
+            if line == "":
+                reading_message = True
+                continue
+            if reading_message:
+                if not message:
+                    message = line
+            elif line.startswith("parent "):
+                parents.append(line.split(" ", 1)[1])
+            elif " " in line:
+                oid, path = line.split(" ", 1)
+                tree[path] = oid
+
+        print(f"commit {commit_id}")
+        if message:
+            print(f"    {message}")
+
+        if parents:
+            parent_tree = _commit_tree(parents[0])
+        else:
+            parent_tree = {}
+
+        changed = []
+        for path in sorted(set(tree) | set(parent_tree)):
+            if tree.get(path) != parent_tree.get(path):
+                changed.append(path)
+
+        for path in changed:
+            print(f"    {path}")
+        print()
+
+        commit_id = parents[0] if parents else None
+
+
+def difftool(args):
+    git_dir = _git_dir()
+    if not os.path.isdir(git_dir):
+        print("fatal: not a git repository (or any of the parent directories): .git")
+        return
+
+    if not args:
+        print("usage: difftool <path>...")
+        return
+
+    print("Launching external diff tool (toy implementation)")
+    diff(args)
+    print("Diff tool finished")
+
+
 def ls_files(args):
     git_dir = _git_dir()
     if not os.path.isdir(git_dir):
