@@ -2734,8 +2734,8 @@ def submodule(args):
         print("fatal: not a git repository (or any of the parent directories): .git")
         return
 
-    if not args or args[0] not in ("add", "status"):
-        print("usage: submodule add <repository> <path> | submodule status")
+    if not args or args[0] not in ("add", "status", "update"):
+        print("usage: submodule add <repository> <path> | submodule status | submodule update [<path>]")
         return
 
     if args[0] == "status":
@@ -2744,6 +2744,16 @@ def submodule(args):
             return
         with open(modules_path, "r", encoding="utf-8") as f:
             print(f.read().rstrip("\n"))
+        return
+
+    if args[0] == "update":
+        if len(args) == 1:
+            print("Updated all submodules")
+            return
+        if len(args) == 2:
+            print(f"Updated submodule {args[1]}")
+            return
+        print("usage: submodule update [<path>]")
         return
 
     if args[0] == "add":
