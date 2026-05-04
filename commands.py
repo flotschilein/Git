@@ -2599,7 +2599,180 @@ def hash_object(args):
     print(object_id)
 
 
-def count_objects(args):
+def update_index(args):
+    git_dir = _git_dir()
+    if not os.path.isdir(git_dir):
+        print("fatal: not a git repository (or any of the parent directories): .git")
+        return
+
+    if len(args) != 2 or args[0] not in ("--add", "--remove"):
+        print("usage: update-index --add <file> | update-index --remove <file>")
+        return
+
+    action = args[0]
+    path = _normalize_path(args[1])
+
+    index = _read_index()
+    if action == "--add":
+        if not os.path.isfile(path):
+            print(f"fatal: pathspec '{path}' did not match any files")
+            return
+        with open(path, "rb") as f:
+            data = f.read()
+        index[path] = _store_object(data)
+        _write_index(index)
+        print(f"updated index with {path}")
+        return
+
+    if action == "--remove":
+        if path not in index:
+            print(f"fatal: pathspec '{path}' did not match any files")
+            return
+        del index[path]
+        _write_index(index)
+        print(f"removed {path} from index")
+        return
+
+
+def write_tree(args):
+    git_dir = _git_dir()
+    if not os.path.isdir(git_dir):
+        print("fatal: not a git repository (or any of the parent directories): .git")
+        return
+
+    if args:
+        print("usage: write-tree")
+        return
+
+    index = _read_index()
+    content = "\n".join(f"{index[path]} {path}" for path in sorted(index))
+    if content:
+        content += "\n"
+    tree_id = _store_object(content.encode("utf-8"))
+    print(tree_id)
+
+
+def commit_tree(args):
+    git_dir = _git_dir()
+    if not os.path.isdir(git_dir):
+        print("fatal: not a git repository (or any of the parent directories): .git")
+        return
+
+    if not args:
+        print("usage: commit-tree <tree> -m <message> [-p <parent>]")
+        return
+
+    tree_name = args[0]
+    args = args[1:]
+    parents = []
+    message = None
+    i = 0
+    while i < len(args):
+        if args[i] == "-p":
+            if i + 1 >= len(args):
+                print("usage: commit-tree <tree> -m <message> [-p <parent>]")
+                return
+            parents.append(args[i + 1])
+            i += 2
+        elif args[i] == "-m":
+            if i + 1 >= len(args):
+                print("usage: commit-tree <tree> -m <message> [-p <parent>]")
+                return
+            message = args[i + 1]
+            i += 2
+        else:
+            print("usage: commit-tree <tree> -m <message> [-p <parent>]")
+            return
+
+    if message is None:
+        print("usage: commit-tree <tree> -m <message> [-p <parent>]")
+        return
+
+    tree_id = _resolve_tag(tree_name) or _resolve_commit(tree_name)
+    if not tree_id:
+        print(f"fatal: ambiguous argument '{tree_name}'")
+        return
+
+    tree_data = _read_object(tree_id)
+    if tree_data is None:
+        print(f"fatal: object {tree_id} not found")
+        return
+
+    contents = [f"parent {parent}" for parent in parents]
+    contents.extend(tree_data.decode("utf-8", errors="replace").splitlines())
+    contents.append("")
+    contents.append(message)
+
+    commit_id = _store_object("\n".join(contents).encode("utf-8"))
+    print(commit_id)
+
+
+def rev_list(args):
+    git_dir = _git_dir()
+    if not os.path.isdir(git_dir):
+        print("fatal: not a git repository (or any of the parent directories): .git")
+        return
+
+    if len(args) > 1:
+        print("usage: rev-list [<commit>]")
+        return
+
+    commit_id = _resolve_commit(args[0]) if args else _current_commit_id()
+    if not commit_id:
+        print("fatal: no commits yet")
+        return
+
+    while commit_id:
+        print(commit_id)
+        parents = _commit_parents(commit_id)
+        commit_id = parents[0] if parents else None
+
+
+def submodule(args):
+    git_dir = _git_dir()
+    if not os.path.isdir(git_dir):
+        print("fatal: not a git repository (or any of the parent directories): .git")
+        return
+
+    if not args or args[0] not in ("add", "status"):
+        print("usage: submodule add <repository> <path> | submodule status")
+        return
+
+    if args[0] == "status":
+        modules_path = os.path.join(os.getcwd(), ".gitmodules")
+        if not os.path.isfile(modules_path):
+            return
+        with open(modules_path, "r", encoding="utf-8") as f:
+            print(f.read().rstrip("\n"))
+        return
+
+    if args[0] == "add":
+        if len(args) != 3:
+            print("usage: submodule add <repository> <path>")
+            return
+
+        repository = args[1]
+        destination = args[2]
+        if os.path.exists(destination):
+            print(f"fatal: destination path '{destination}' already exists")
+            return
+
+        if not os.path.isdir(repository) or not os.path.isdir(os.path.join(repository, ".git")):
+            print(f"fatal: repository '{repository}' not found or is not a git repository")
+            return
+
+        shutil.copytree(repository, destination)
+        modules_path = os.path.join(os.getcwd(), ".gitmodules")
+        with open(modules_path, "a", encoding="utf-8") as f:
+            f.write(f"[submodule \"{destination}\"]\n")
+            f.write(f"\tpath = {destination}\n")
+            f.write(f"\turl = {repository}\n")
+
+        print(f"Added submodule {destination} ({repository})")
+
+
+def help(args):
+    print_welcome()
     git_dir = _git_dir()
     if not os.path.isdir(git_dir):
         print("fatal: not a git repository (or any of the parent directories): .git")
