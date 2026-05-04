@@ -1206,6 +1206,41 @@ def grep(args):
         print(match)
 
 
+def reflog(args):
+    git_dir = _git_dir()
+    if not os.path.isdir(git_dir):
+        print("fatal: not a git repository (or any of the parent directories): .git")
+        return
+
+    if args:
+        print("usage: reflog")
+        return
+
+    commit_id = _current_commit_id()
+    if not commit_id:
+        print("fatal: no commits yet")
+        return
+
+    index = 0
+    while commit_id:
+        data = _read_object(commit_id)
+        if data is None:
+            print(f"fatal: commit object {commit_id} not found")
+            return
+        lines = data.decode("utf-8", errors="replace").splitlines()
+        message = ""
+        for line in lines:
+            if line == "":
+                continue
+            if not line.startswith("parent "):
+                message = line
+                break
+        print(f"HEAD@{{{index}}}: {commit_id[:7]} {message}")
+        parents = _commit_parents(commit_id)
+        commit_id = parents[0] if parents else None
+        index += 1
+
+
 def repo_status():
     git_dir = _git_dir()
     if not os.path.isdir(git_dir):
