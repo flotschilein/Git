@@ -3,6 +3,7 @@
 import difflib
 import io
 import os
+import re
 import shutil
 import tarfile
 
@@ -1543,6 +1544,275 @@ def archive(args):
         print(f"created archive {archive_path}")
     except Exception as exc:
         print(f"fatal: could not create archive: {exc}")
+
+
+def _bisect_dir():
+    return os.path.join(_git_dir(), "bisect")
+
+
+def _bisect_state_path():
+    return os.path.join(_bisect_dir(), "state")
+
+
+def _read_bisect_state():
+    path = _bisect_state_path()
+    if not os.path.isfile(path):
+        return None
+    state = {}
+    with open(path, "r", encoding="utf-8") as f:
+        for line in f:
+            key, _, value = line.partition("=")
+            state[key.strip()] = value.strip()
+    return state
+
+
+def _write_bisect_state(state):
+    os.makedirs(_bisect_dir(), exist_ok=True)
+    with open(_bisect_state_path(), "w", encoding="utf-8") as f:
+        for key in sorted(state):
+            f.write(f"{key}={state[key]}\n")
+
+
+def _bisect_path(bad, good):
+    if bad == good:
+        return [bad]
+    path = [bad]
+    current = bad
+    while current != good:
+        parents = _commit_parents(current)
+        if not parents:
+            return []
+        current = parents[0]
+        path.append(current)
+        if len(path) > 10000:
+            break
+    return path if current == good else []
+
+
+def _detach_head(commit_id):
+    with open(os.path.join(_git_dir(), "HEAD"), "w", encoding="utf-8") as head_file:
+        head_file.write(commit_id + "\n")
+
+
+def apply(args):
+    if len(args) != 1:
+        print("usage: apply <patch-file>")
+        return
+
+    patch_file = args[0]
+    if not os.path.isfile(patch_file):
+        print(f"fatal: patch file '{patch_file}' not found")
+        return
+
+    files = []
+    current_path = None
+    hunks = []
+    with open(patch_file, "r", encoding="utf-8", errors="replace") as f:
+        for line in f:
+            if line.startswith("diff --git"):
+                if current_path and hunks:
+                    files.append((current_path, hunks))
+                current_path = None
+                hunks = []
+                continue
+            if line.startswith("+++ "):
+                path = line[4:].strip()
+                if path.startswith("b/"):
+                    current_path = _normalize_path(path[2:])
+                elif path == "/dev/null":
+                    current_path = None
+                continue
+            if line.startswith("@@"):
+                match = re.match(r"@@ -(\d+)(?:,(\d+))? \+(\d+)(?:,(\d+))? @@", line)
+                if not match:
+                    continue
+                old_start = int(match.group(1))
+                old_count = int(match.group(2) or "1")
+                hunks.append({
+                    "old_start": old_start,
+                    "old_count": old_count,
+                    "lines": [],
+                })
+                continue
+            if current_path and hunks and line[0] in {" ", "+", "-", "\\"}:
+                hunks[-1]["lines"].append(line)
+
+    if current_path and hunks:
+        files.append((current_path, hunks))
+
+    if not files:
+        print("fatal: no patch content")
+        return
+
+    for path, file_hunks in files:
+        orig_lines = []
+        if os.path.isfile(path):
+            with open(path, "r", encoding="utf-8", errors="replace") as f:
+                orig_lines = f.readlines()
+
+        result = []
+        src_index = 0
+        for hunk in file_hunks:
+            start = hunk["old_start"] - 1
+            result.extend(orig_lines[src_index:start])
+            index = start
+            for patch_line in hunk["lines"]:
+                tag = patch_line[0]
+                content = patch_line[1:]
+                if tag == " ":
+                    if index >= len(orig_lines) or orig_lines[index].rstrip("\n") != content.rstrip("\n"):
+                        print(f"fatal: patch failed at {path}")
+                        return
+                    result.append(orig_lines[index])
+                    index += 1
+                elif tag == "-":
+                    if index >= len(orig_lines) or orig_lines[index].rstrip("\n") != content.rstrip("\n"):
+                        print(f"fatal: patch failed at {path}")
+                        return
+                    index += 1
+                elif tag == "+":
+                    result.append(content)
+            src_index = start + hunk["old_count"]
+        result.extend(orig_lines[src_index:])
+
+        dirpath = os.path.dirname(path)
+        if dirpath:
+            os.makedirs(dirpath, exist_ok=True)
+        with open(path, "w", encoding="utf-8", newline="") as f:
+            f.writelines(result)
+        print(f"Applied patch to {path}")
+
+
+def bisect(args):
+    git_dir = _git_dir()
+    if not os.path.isdir(git_dir):
+        print("fatal: not a git repository (or any of the parent directories): .git")
+        return
+
+    if not args:
+        print("usage: bisect start <bad> <good> | bisect good | bisect bad | bisect reset")
+        return
+
+    subcommand = args[0]
+    if subcommand == "start":
+        if len(args) != 3:
+            print("usage: bisect start <bad> <good>")
+            return
+
+        bad = _resolve_tag(args[1]) or _resolve_commit(args[1])
+        good = _resolve_tag(args[2]) or _resolve_commit(args[2])
+        if not bad or not good:
+            print(f"fatal: ambiguous argument '{args[1] if not bad else args[2]}'")
+            return
+
+        base = _find_merge_base(bad, good)
+        if base != good:
+            print("fatal: good commit is not an ancestor of bad commit")
+            return
+
+        path = _bisect_path(bad, good)
+        if len(path) <= 2:
+            print("bisect: no intermediate commits to test")
+            return
+
+        midpoint = path[len(path) // 2]
+        original_head = _read_head() or ""
+        _write_bisect_state({
+            "good": good,
+            "bad": bad,
+            "current": midpoint,
+            "original_head": original_head,
+        })
+        _detach_head(midpoint)
+        _restore_commit(midpoint)
+        print(f"bisect started, testing {midpoint[:7]}")
+        return
+
+    if subcommand in ("good", "bad"):
+        state = _read_bisect_state()
+        if not state:
+            print("fatal: no bisect in progress")
+            return
+
+        current = state["current"]
+        state[subcommand] = current
+
+        path = _bisect_path(state["bad"], state["good"])
+        if len(path) <= 2:
+            print(f"bisect complete: first bad commit is {current[:7]}")
+            return
+
+        midpoint = path[len(path) // 2]
+        state["current"] = midpoint
+        _write_bisect_state(state)
+        _detach_head(midpoint)
+        _restore_commit(midpoint)
+        print(f"bisect next commit {midpoint[:7]}")
+        return
+
+    if subcommand == "reset":
+        state = _read_bisect_state()
+        if not state:
+            print("fatal: no bisect in progress")
+            return
+
+        with open(os.path.join(git_dir, "HEAD"), "w", encoding="utf-8") as head_file:
+            head_file.write(state["original_head"] + "\n")
+        os.remove(_bisect_state_path())
+        print("bisect reset")
+        return
+
+    print("usage: bisect start <bad> <good> | bisect good | bisect bad | bisect reset")
+
+
+def worktree(args):
+    git_dir = _git_dir()
+    if not os.path.isdir(git_dir):
+        print("fatal: not a git repository (or any of the parent directories): .git")
+        return
+
+    if not args or args[0] not in ("add", "list"):
+        print("usage: worktree add <path> [<branch>] | worktree list")
+        return
+
+    subcommand = args[0]
+    if subcommand == "list":
+        worktrees_dir = os.path.join(git_dir, "worktrees")
+        if not os.path.isdir(worktrees_dir):
+            return
+        for root, dirs, files in os.walk(worktrees_dir):
+            for filename in files:
+                print(filename)
+        return
+
+    if subcommand == "add":
+        if len(args) not in (2, 3):
+            print("usage: worktree add <path> [<branch>]")
+            return
+
+        destination = args[1]
+        branch = args[2] if len(args) == 3 else _current_branch() or "main"
+        branch_ref = os.path.join(git_dir, "refs", "heads", branch)
+        if not os.path.isfile(branch_ref):
+            print(f"fatal: branch '{branch}' not found")
+            return
+
+        if os.path.exists(destination):
+            print(f"fatal: destination path '{destination}' already exists")
+            return
+
+        shutil.copytree(os.getcwd(), destination)
+        with open(os.path.join(destination, ".git", "HEAD"), "w", encoding="utf-8") as head_file:
+            head_file.write(f"ref: refs/heads/{branch}\n")
+
+        worktrees_dir = os.path.join(git_dir, "worktrees")
+        os.makedirs(worktrees_dir, exist_ok=True)
+        worktree_name = os.path.basename(os.path.abspath(destination))
+        with open(os.path.join(worktrees_dir, worktree_name), "w", encoding="utf-8") as worktree_file:
+            worktree_file.write(os.path.abspath(destination) + "\n")
+
+        print(f"Added worktree {destination} for branch {branch}")
+        return
 
 
 def print_welcome():
