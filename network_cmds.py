@@ -365,6 +365,24 @@ def remote(args):
         print(f"Removed remote {name}")
         return
 
+    if subcommand == "rename":
+        if len(args) != 3:
+            print("usage: remote rename <old> <new>")
+            return
+        old_name = args[1]
+        new_name = args[2]
+        if not _read_remote_target(local_root, old_name):
+            print(f"fatal: remote {old_name} not found")
+            return
+        if _read_remote_target(local_root, new_name):
+            print(f"fatal: remote {new_name} already exists")
+            return
+        old_target = _read_remote_target(local_root, old_name)
+        _write_remote_target(local_root, new_name, old_target)
+        _remove_remote_target(local_root, old_name)
+        print(f"Renamed remote {old_name} to {new_name}")
+        return
+
     if subcommand == "show" and len(args) == 2:
         name = args[1]
         target = _read_remote_target(local_root, name)
@@ -374,4 +392,4 @@ def remote(args):
         print(f"{name}\t{target}")
         return
 
-    print("usage: remote [<args>]\n       remote [-v]\n       remote add <name> <repository>\n       remote remove <name>\n       remote show <name>")
+    print("usage: remote [<args>]\n       remote [-v]\n       remote add <name> <repository>\n       remote remove <name>\n       remote rename <old> <new>\n       remote show <name>")

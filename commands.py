@@ -343,6 +343,25 @@ def tag(args):
             print(tag_name)
         return
 
+    if args[0] in ("-d", "--delete"):
+        if len(args) != 2:
+            print("usage: tag -d <tag> | tag --delete <tag>")
+            return
+        name = args[1]
+        tag_path = os.path.join(tags_dir, name)
+        if not os.path.isfile(tag_path):
+            print(f"fatal: tag '{name}' not found")
+            return
+        os.remove(tag_path)
+        parent_dir = os.path.dirname(tag_path)
+        while parent_dir and parent_dir != tags_dir and parent_dir.startswith(tags_dir):
+            if os.listdir(parent_dir):
+                break
+            os.rmdir(parent_dir)
+            parent_dir = os.path.dirname(parent_dir)
+        print(f"Deleted tag {name}")
+        return
+
     name = args[0]
     target = None
     if len(args) > 1:
@@ -526,7 +545,7 @@ def stash(args):
         return
 
     if not args:
-        print("usage: stash save [<message>] | stash list | stash pop")
+        print("usage: stash save [<message>] | stash list | stash pop | stash drop")
         return
 
     subcommand = args[0]
@@ -614,7 +633,29 @@ def stash(args):
         print(f"Popped stash {commit_id[:7]}")
         return
 
-    print("usage: stash save [<message>] | stash list | stash pop")
+    if subcommand == "drop":
+        if not os.path.isfile(stash_ref):
+            print("No stash entries found.")
+            return
+
+        with open(stash_ref, "r", encoding="utf-8") as stash_file:
+            commit_id = stash_file.read().strip()
+        if not commit_id:
+            print("No stash entries found.")
+            return
+
+        parents = _commit_parents(commit_id)
+        next_stash = parents[0] if parents else None
+        if next_stash:
+            with open(stash_ref, "w", encoding="utf-8") as stash_file:
+                stash_file.write(next_stash + "\n")
+        else:
+            os.remove(stash_ref)
+
+        print(f"Dropped stash {commit_id[:7]}")
+        return
+
+    print("usage: stash save [<message>] | stash list | stash pop | stash drop")
 
 
 def revert(args):
