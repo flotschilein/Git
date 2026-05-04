@@ -3044,6 +3044,14 @@ def daemon(args):
     print(f"daemon serving {directory}")
 
 
+def svn(args):
+    print("svn support is not implemented in this tiny git tool")
+
+
+def cvsimport(args):
+    print("cvsimport support is not implemented in this tiny git tool")
+
+
 def verify_tag(args):
     git_dir = _git_dir()
     if not os.path.isdir(git_dir):

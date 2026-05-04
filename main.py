@@ -3,7 +3,7 @@
 """Minimal welcome script for a lightweight custom git-like entrypoint."""
 
 import sys
-from commands import add_paths, am, apply, archive, blame, bisect, branch, bundle, checkout, cherry_pick, clean, commit, config, diff, describe, format_patch, fsck, gc, grep, init_repo, instaweb, log_history, merge, mergetool, mv, notes, print_welcome, prune, rebase, reflog, repo_status, request_pull, reset, restore, rm, revert, send_email, show, stash, switch, tag, version, help, worktree, ls_files, rev_parse, cat_file, shortlog, whatchanged, difftool, show_ref, for_each_ref, ls_tree, hash_object, count_objects, pack_refs, verify_tag, update_index, write_tree, commit_tree, rev_list, submodule, rerere, replace, filter_branch, sparse_checkout, fast_export, pack_objects, fast_import, maintenance, upload_pack, receive_pack, daemon
+from commands import add_paths, am, apply, archive, blame, bisect, branch, bundle, checkout, cherry_pick, clean, commit, config, diff, describe, format_patch, fsck, gc, grep, init_repo, instaweb, log_history, merge, mergetool, mv, notes, print_welcome, prune, rebase, reflog, repo_status, request_pull, reset, restore, rm, revert, send_email, show, stash, switch, tag, version, help, worktree, ls_files, rev_parse, cat_file, shortlog, whatchanged, difftool, show_ref, for_each_ref, ls_tree, hash_object, count_objects, pack_refs, verify_tag, update_index, write_tree, commit_tree, rev_list, submodule, rerere, replace, filter_branch, sparse_checkout, fast_export, pack_objects, fast_import, maintenance, upload_pack, receive_pack, daemon, svn, cvsimport
 from network_cmds import clone, push, pull, fetch, remote
 
 
@@ -128,6 +128,10 @@ def main():
             receive_pack(sys.argv[2:])
         elif cmd == "daemon":
             daemon(sys.argv[2:])
+        elif cmd == "svn":
+            svn(sys.argv[2:])
+        elif cmd == "cvsimport":
+            cvsimport(sys.argv[2:])
         elif cmd == "pack-objects":
             pack_objects(sys.argv[2:])
         elif cmd == "stash":
@@ -166,7 +170,7 @@ def main():
             remote(sys.argv[2:])
         else:
             print(f"Unknown command: {cmd}")
-            print("Available commands: init, add, rm, tag, commit, branch, checkout, switch, restore, rebase, cherry-pick, describe, grep, archive, am, apply, bundle, bisect, worktree, blame, format-patch, request-pull, send-email, fsck, gc, instaweb, notes, prune, reflog, reset, merge, mergetool, ls-files, rev-parse, cat-file, shortlog, whatchanged, difftool, show-ref, for-each-ref, ls-tree, hash-object, count-objects, pack-refs, verify-tag, update-index, write-tree, commit-tree, rev-list, submodule, rerere, replace, filter-branch, sparse-checkout, fast-export, fast-import, pack-objects, maintenance, upload-pack, receive-pack, daemon, stash, revert, clean, config, mv, status, log, diff, show, clone, push, pull, fetch, remote, help, version")
+            print("Available commands: init, add, rm, tag, commit, branch, checkout, switch, restore, rebase, cherry-pick, describe, grep, archive, am, apply, bundle, bisect, worktree, blame, format-patch, request-pull, send-email, fsck, gc, instaweb, notes, prune, reflog, reset, merge, mergetool, ls-files, rev-parse, cat-file, shortlog, whatchanged, difftool, show-ref, for-each-ref, ls-tree, hash-object, count-objects, pack-refs, verify-tag, update-index, write-tree, commit-tree, rev-list, submodule, rerere, replace, filter-branch, sparse-checkout, fast-export, fast-import, pack-objects, maintenance, upload-pack, receive-pack, daemon, svn, cvsimport, stash, revert, clean, config, mv, status, log, diff, show, clone, push, pull, fetch, remote, help, version")
     else:
         print_welcome()
 
