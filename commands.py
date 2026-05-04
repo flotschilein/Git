@@ -576,6 +576,115 @@ def merge(args):
     print(f"Merge made by the simple merge strategy.\n[{commit_id[:7]}] Merge branch '{target}'")
 
 
+def mergetool(args):
+    git_dir = _git_dir()
+    if not os.path.isdir(git_dir):
+        print("fatal: not a git repository (or any of the parent directories): .git")
+        return
+
+    path = args[0] if args else None
+    conflict_files = []
+    for root, dirs, files in os.walk(os.getcwd()):
+        if ".git" in root.split(os.sep):
+            continue
+        for filename in files:
+            filepath = os.path.join(root, filename)
+            try:
+                with open(filepath, "r", encoding="utf-8", errors="replace") as f:
+                    text = f.read()
+                if "<<<<<<<" in text and "=======" in text and ">>>>>>>" in text:
+                    conflict_files.append(_normalize_path(os.path.relpath(filepath, os.getcwd())))
+            except OSError:
+                continue
+
+    if path:
+        normalized = _normalize_path(path)
+        if normalized not in conflict_files:
+            print(f"No merge conflicts found in {path}")
+            return
+        conflict_files = [normalized]
+
+    if not conflict_files:
+        print("No merge conflicts found")
+        return
+
+    for conflict in conflict_files:
+        print(f"Launching merge tool for {conflict}")
+    print("Merge tool finished (toy implementation)")
+
+
+def _notes_dir():
+    return os.path.join(_git_dir(), "refs", "notes")
+
+
+def notes(args):
+    git_dir = _git_dir()
+    if not os.path.isdir(git_dir):
+        print("fatal: not a git repository (or any of the parent directories): .git")
+        return
+
+    notes_dir = _notes_dir()
+    os.makedirs(notes_dir, exist_ok=True)
+
+    if not args or args[0] not in ("add", "show", "list", "remove"):
+        print("usage: notes add <commit> <note> | notes show <commit> | notes list | notes remove <commit>")
+        return
+
+    subcommand = args[0]
+    if subcommand == "list":
+        for root, dirs, files in os.walk(notes_dir):
+            for filename in files:
+                print(os.path.relpath(os.path.join(root, filename), notes_dir))
+        return
+
+    if subcommand == "add":
+        if len(args) < 3:
+            print("usage: notes add <commit> <note>")
+            return
+        commit_id = _resolve_tag(args[1]) or _resolve_commit(args[1])
+        if not commit_id:
+            print(f"fatal: ambiguous argument '{args[1]}'")
+            return
+        note = " ".join(args[2:])
+        note_path = os.path.join(notes_dir, commit_id)
+        with open(note_path, "w", encoding="utf-8") as f:
+            f.write(note + "\n")
+        print(f"Added note to {commit_id[:7]}")
+        return
+
+    if subcommand == "show":
+        if len(args) != 2:
+            print("usage: notes show <commit>")
+            return
+        commit_id = _resolve_tag(args[1]) or _resolve_commit(args[1])
+        if not commit_id:
+            print(f"fatal: ambiguous argument '{args[1]}'")
+            return
+        note_path = os.path.join(notes_dir, commit_id)
+        if not os.path.isfile(note_path):
+            print(f"No note found for {commit_id[:7]}")
+            return
+        with open(note_path, "r", encoding="utf-8") as f:
+            print(f.read().rstrip("\n"))
+        return
+
+    if subcommand == "remove":
+        if len(args) != 2:
+            print("usage: notes remove <commit>")
+            return
+        commit_id = _resolve_tag(args[1]) or _resolve_commit(args[1])
+        if not commit_id:
+            print(f"fatal: ambiguous argument '{args[1]}'")
+            return
+        note_path = os.path.join(notes_dir, commit_id)
+        if os.path.isfile(note_path):
+            os.remove(note_path)
+            print(f"Removed note from {commit_id[:7]}")
+        else:
+            print(f"No note found for {commit_id[:7]}")
+        return
+
+
 def stash(args):
     git_dir = _git_dir()
     if not os.path.isdir(git_dir):
