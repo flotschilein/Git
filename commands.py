@@ -2495,6 +2495,110 @@ def print_welcome():
     print("Use 'init' to create a repo, 'add' to stage files, 'rm' to remove paths, 'tag' to create or list tags, 'show' to inspect refs or objects, 'commit' to record changes, 'branch' to manage branches, 'checkout' and 'switch' to move around history, 'restore' to recover files, 'reset' to move HEAD, 'merge' to combine branches, and 'status', 'log', or 'diff' to inspect the repo.")
 
 
+def show_ref(args):
+    git_dir = _git_dir()
+    if not os.path.isdir(git_dir):
+        print("fatal: not a git repository (or any of the parent directories): .git")
+        return
+
+    if args and args[0] not in ("--heads", "--tags"):
+        print("usage: show-ref [--heads|--tags]")
+        return
+
+    refs_root = os.path.join(git_dir, "refs")
+    filter_prefix = None
+    if args:
+        if args[0] == "--heads":
+            filter_prefix = os.path.join("refs", "heads")
+        elif args[0] == "--tags":
+            filter_prefix = os.path.join("refs", "tags")
+
+    for root, dirs, files in os.walk(refs_root):
+        for filename in files:
+            ref_path = os.path.join(root, filename)
+            ref_name = os.path.relpath(ref_path, git_dir)
+            if filter_prefix and not ref_name.startswith(filter_prefix):
+                continue
+            with open(ref_path, "r", encoding="utf-8") as ref_file:
+                commit_id = ref_file.read().strip()
+            if commit_id:
+                print(f"{commit_id} {ref_name}")
+
+
+def for_each_ref(args):
+    git_dir = _git_dir()
+    if not os.path.isdir(git_dir):
+        print("fatal: not a git repository (or any of the parent directories): .git")
+        return
+
+    pattern = args[0] if args else None
+    refs_root = os.path.join(git_dir, "refs")
+
+    for root, dirs, files in os.walk(refs_root):
+        for filename in files:
+            ref_path = os.path.join(root, filename)
+            ref_name = os.path.relpath(ref_path, git_dir)
+            if pattern and not ref_name.startswith(pattern):
+                continue
+            with open(ref_path, "r", encoding="utf-8") as ref_file:
+                commit_id = ref_file.read().strip()
+            if commit_id:
+                print(f"{commit_id} {ref_name}")
+
+
+def ls_tree(args):
+    git_dir = _git_dir()
+    if not os.path.isdir(git_dir):
+        print("fatal: not a git repository (or any of the parent directories): .git")
+        return
+
+    target = args[0] if args else None
+    commit_id = _resolve_tag(target) or _resolve_commit(target)
+    if not commit_id:
+        print(f"fatal: ambiguous argument '{target or 'HEAD'}'")
+        return
+
+    tree = _commit_tree(commit_id)
+    for path in sorted(tree):
+        oid = tree[path]
+        if oid is None:
+            continue
+        print(f"100644 blob {oid}\t{path}")
+
+
+def hash_object(args):
+    git_dir = _git_dir()
+    if not os.path.isdir(git_dir):
+        print("fatal: not a git repository (or any of the parent directories): .git")
+        return
+
+    if not args:
+        print("usage: hash-object [-w] <file>")
+        return
+
+    write = False
+    if args[0] == "-w":
+        write = True
+        args = args[1:]
+
+    if len(args) != 1:
+        print("usage: hash-object [-w] <file>")
+        return
+
+    file_path = args[0]
+    if not os.path.isfile(file_path):
+        print(f"fatal: pathspec '{file_path}' did not match any files")
+        return
+
+    with open(file_path, "rb") as f:
+        data = f.read()
+
+    object_id = _hash_object(data)
+    if write:
+        _store_object(data)
+    print(object_id)
+
+
 def help(args):
     print_welcome()
 

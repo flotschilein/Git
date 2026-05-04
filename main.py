@@ -3,7 +3,7 @@
 """Minimal welcome script for a lightweight custom git-like entrypoint."""
 
 import sys
-from commands import add_paths, am, apply, archive, blame, bisect, branch, bundle, checkout, cherry_pick, clean, commit, config, diff, describe, format_patch, fsck, gc, grep, init_repo, instaweb, log_history, merge, mergetool, mv, notes, print_welcome, prune, rebase, reflog, repo_status, request_pull, reset, restore, rm, revert, send_email, show, stash, switch, tag, version, help, worktree, ls_files, rev_parse, cat_file, shortlog, whatchanged, difftool
+from commands import add_paths, am, apply, archive, blame, bisect, branch, bundle, checkout, cherry_pick, clean, commit, config, diff, describe, format_patch, fsck, gc, grep, init_repo, instaweb, log_history, merge, mergetool, mv, notes, print_welcome, prune, rebase, reflog, repo_status, request_pull, reset, restore, rm, revert, send_email, show, stash, switch, tag, version, help, worktree, ls_files, rev_parse, cat_file, shortlog, whatchanged, difftool, show_ref, for_each_ref, ls_tree, hash_object
 from network_cmds import clone, push, pull, fetch, remote
 
 
@@ -84,6 +84,14 @@ def main():
             whatchanged(sys.argv[2:])
         elif cmd == "difftool":
             difftool(sys.argv[2:])
+        elif cmd == "show-ref":
+            show_ref(sys.argv[2:])
+        elif cmd == "for-each-ref":
+            for_each_ref(sys.argv[2:])
+        elif cmd == "ls-tree":
+            ls_tree(sys.argv[2:])
+        elif cmd == "hash-object":
+            hash_object(sys.argv[2:])
         elif cmd == "stash":
             stash(sys.argv[2:])
         elif cmd == "revert":
@@ -120,7 +128,7 @@ def main():
             remote(sys.argv[2:])
         else:
             print(f"Unknown command: {cmd}")
-            print("Available commands: init, add, rm, tag, commit, branch, checkout, switch, restore, rebase, cherry-pick, describe, grep, archive, am, apply, bundle, bisect, worktree, blame, format-patch, request-pull, send-email, fsck, gc, instaweb, notes, prune, reflog, reset, merge, mergetool, ls-files, rev-parse, cat-file, shortlog, whatchanged, difftool, stash, revert, clean, config, mv, status, log, diff, show, clone, push, pull, fetch, remote, help, version")
+            print("Available commands: init, add, rm, tag, commit, branch, checkout, switch, restore, rebase, cherry-pick, describe, grep, archive, am, apply, bundle, bisect, worktree, blame, format-patch, request-pull, send-email, fsck, gc, instaweb, notes, prune, reflog, reset, merge, mergetool, ls-files, rev-parse, cat-file, shortlog, whatchanged, difftool, show-ref, for-each-ref, ls-tree, hash-object, stash, revert, clean, config, mv, status, log, diff, show, clone, push, pull, fetch, remote, help, version")
     else:
         print_welcome()
 
