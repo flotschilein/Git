@@ -3013,6 +3013,37 @@ def upload_pack(args):
     print(f"upload-pack service ready for {args[0]}")
 
 
+def receive_pack(args):
+    if len(args) != 1:
+        print("usage: receive-pack <repository>")
+        return
+
+    repo_root = os.path.abspath(args[0])
+    git_dir_path = os.path.join(repo_root, ".git")
+    if not os.path.isdir(repo_root) or not os.path.isdir(git_dir_path):
+        print(f"fatal: repository '{args[0]}' not found or is not a git repository")
+        return
+
+    print(f"receive-pack service ready for {args[0]}")
+
+
+def daemon(args):
+    if len(args) not in (0, 1):
+        print("usage: daemon [<directory>]")
+        return
+
+    if not args:
+        print("daemon service ready")
+        return
+
+    directory = args[0]
+    if not os.path.isdir(directory):
+        print(f"fatal: directory '{directory}' not found")
+        return
+
+    print(f"daemon serving {directory}")
+
+
 def verify_tag(args):
     git_dir = _git_dir()
     if not os.path.isdir(git_dir):
