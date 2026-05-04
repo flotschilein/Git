@@ -1744,6 +1744,22 @@ def prune(args):
         print(f"pruned {oid}")
 
 
+def gc(args):
+    if args:
+        print("usage: gc")
+        return
+    prune([])
+    print("garbage collection complete")
+
+
+def instaweb(args):
+    if not args or args[0] != "start":
+        print("usage: instaweb start")
+        return
+    print("Launching tiny instaweb server at http://localhost:8000")
+    print("(not actually starting a web server in this toy implementation)")
+
+
 def _bisect_dir():
     return os.path.join(_git_dir(), "bisect")
 
