@@ -669,6 +669,24 @@ def stash(args):
         print(f"Popped stash {commit_id[:7]}")
         return
 
+    if subcommand == "apply":
+        if not os.path.isfile(stash_ref):
+            print("No stash entries found.")
+            return
+
+        with open(stash_ref, "r", encoding="utf-8") as stash_file:
+            commit_id = stash_file.read().strip()
+        if not commit_id:
+            print("No stash entries found.")
+            return
+
+        stash_tree = _commit_tree(commit_id)
+        _restore_tree(stash_tree)
+        _write_index_from_tree(commit_id)
+
+        print(f"Applied stash {commit_id[:7]}")
+        return
+
     if subcommand == "drop":
         if not os.path.isfile(stash_ref):
             print("No stash entries found.")
@@ -691,7 +709,7 @@ def stash(args):
         print(f"Dropped stash {commit_id[:7]}")
         return
 
-    print("usage: stash save [<message>] | stash list | stash pop | stash drop")
+    print("usage: stash save [<message>] | stash list | stash pop | stash apply | stash drop")
 
 
 def revert(args):
@@ -1239,6 +1257,33 @@ def reflog(args):
         parents = _commit_parents(commit_id)
         commit_id = parents[0] if parents else None
         index += 1
+
+
+def blame(args):
+    git_dir = _git_dir()
+    if not os.path.isdir(git_dir):
+        print("fatal: not a git repository (or any of the parent directories): .git")
+        return
+
+    if len(args) != 1:
+        print("usage: blame <file>")
+        return
+
+    path = _normalize_path(args[0])
+    if not os.path.isfile(path):
+        print(f"fatal: pathspec '{args[0]}' did not match any files")
+        return
+
+    commit_id = _current_commit_id()
+    if not commit_id:
+        print("fatal: no commits yet")
+        return
+
+    with open(path, "r", encoding="utf-8", errors="replace") as f:
+        lines = f.readlines()
+
+    for lineno, line in enumerate(lines, start=1):
+        print(f"{commit_id[:7]} ({lineno:4}) {line.rstrip()}")
 
 
 def repo_status():
