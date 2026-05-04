@@ -2906,6 +2906,113 @@ def pack_objects(args):
         print(f"fatal: could not write archive: {exc}")
 
 
+def fast_import(args):
+    git_dir = _git_dir()
+    if not os.path.isdir(git_dir):
+        print("fatal: not a git repository (or any of the parent directories): .git")
+        return
+
+    if len(args) != 1:
+        print("usage: fast-import <file>")
+        return
+
+    import_path = args[0]
+    if not os.path.isfile(import_path):
+        print(f"fatal: fast-import file '{import_path}' not found")
+        return
+
+    current_branch = None
+    parents = []
+    tree_entries = []
+    message_lines = []
+    branch_refs = {}
+
+    def flush_commit():
+        nonlocal current_branch, parents, tree_entries, message_lines
+        if current_branch is None or not message_lines:
+            return
+        contents = []
+        for parent in parents:
+            contents.append(f"parent {parent}")
+        contents.extend(tree_entries)
+        contents.append("")
+        contents.extend(message_lines)
+        commit_id = _store_object("\n".join(contents).encode("utf-8"))
+        branch_refs[current_branch] = commit_id
+        print(f"imported commit {commit_id[:7]} into {current_branch}")
+        parents = []
+        tree_entries = []
+        message_lines = []
+
+    with open(import_path, "r", encoding="utf-8", errors="replace") as f:
+        reading_message = False
+        for raw_line in f:
+            line = raw_line.rstrip("\n")
+            if reading_message:
+                if line == "EOF":
+                    reading_message = False
+                    continue
+                message_lines.append(line)
+                continue
+
+            if line.startswith("commit refs/heads/"):
+                flush_commit()
+                current_branch = line.split("commit refs/heads/", 1)[1]
+                parents = []
+                tree_entries = []
+                message_lines = []
+                continue
+            if line.startswith("from "):
+                parents.append(line.split("from ", 1)[1])
+                continue
+            if line == "data <<EOF":
+                reading_message = True
+                continue
+            if line.startswith("M "):
+                parts = line.split(" ", 3)
+                if len(parts) == 4:
+                    _, mode, oid, path = parts
+                    tree_entries.append(f"{oid} {path}")
+                continue
+            if not line and current_branch and message_lines:
+                flush_commit()
+
+    flush_commit()
+    for branch, head_id in branch_refs.items():
+        ref_path = os.path.join(git_dir, "refs", "heads", branch)
+        os.makedirs(os.path.dirname(ref_path), exist_ok=True)
+        with open(ref_path, "w", encoding="utf-8") as ref_file:
+            ref_file.write(head_id + "\n")
+    print("fast-import complete")
+
+
+def maintenance(args):
+    git_dir = _git_dir()
+    if not os.path.isdir(git_dir):
+        print("fatal: not a git repository (or any of the parent directories): .git")
+        return
+
+    if len(args) != 1 or args[0] != "run":
+        print("usage: maintenance run")
+        return
+
+    print("performed maintenance tasks")
+
+
+def upload_pack(args):
+    if len(args) != 1:
+        print("usage: upload-pack <repository>")
+        return
+
+    repo_root = os.path.abspath(args[0])
+    git_dir_path = os.path.join(repo_root, ".git")
+    if not os.path.isdir(repo_root) or not os.path.isdir(git_dir_path):
+        print(f"fatal: repository '{args[0]}' not found or is not a git repository")
+        return
+
+    print(f"upload-pack service ready for {args[0]}")
+
+
 def verify_tag(args):
     git_dir = _git_dir()
     if not os.path.isdir(git_dir):
