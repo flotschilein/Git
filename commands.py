@@ -836,6 +836,127 @@ def checkout(args):
     print(f"Switched to branch '{name}'")
 
 
+def switch(args):
+    git_dir = _git_dir()
+    if not os.path.isdir(git_dir):
+        print("fatal: not a git repository (or any of the parent directories): .git")
+        return
+
+    if not args:
+        print("usage: switch <branch> | switch -c <branch>")
+        return
+
+    if args[0] == "-c":
+        if len(args) != 2:
+            print("usage: switch -c <branch>")
+            return
+
+        name = args[1]
+        commit_id = _current_commit_id()
+        if not commit_id:
+            print("fatal: cannot create branch with no commits yet")
+            return
+
+        refs_dir = os.path.join(git_dir, "refs", "heads")
+        branch_path = os.path.join(refs_dir, name)
+        if os.path.exists(branch_path):
+            print(f"fatal: branch '{name}' already exists")
+            return
+
+        os.makedirs(os.path.dirname(branch_path), exist_ok=True)
+        with open(branch_path, "w", encoding="utf-8") as ref_file:
+            ref_file.write(commit_id + "\n")
+
+        with open(os.path.join(git_dir, "HEAD"), "w", encoding="utf-8") as head_file:
+            head_file.write(f"ref: refs/heads/{name}\n")
+
+        _restore_commit(commit_id)
+        print(f"Switched to a new branch '{name}'")
+        return
+
+    checkout(args)
+
+
+def restore(args):
+    git_dir = _git_dir()
+    if not os.path.isdir(git_dir):
+        print("fatal: not a git repository (or any of the parent directories): .git")
+        return
+
+    if not args:
+        print("usage: restore [--source <commit>] <pathspec>...")
+        return
+
+    source_commit = None
+    pathspecs = args
+    if args[0] == "--source":
+        if len(args) < 3:
+            print("usage: restore [--source <commit>] <pathspec>...")
+            return
+
+        source_commit = _resolve_tag(args[1]) or _resolve_commit(args[1])
+        if not source_commit:
+            print(f"fatal: ambiguous argument '{args[1]}'")
+            return
+
+        pathspecs = args[2:]
+        tree = _commit_tree(source_commit)
+    else:
+        tree = _read_index()
+        if not tree:
+            print("fatal: your current index is empty")
+            return
+
+    restored = []
+    for arg in pathspecs:
+        normalized = _normalize_path(arg)
+        if normalized == "":
+            normalized = "."
+
+        matched = False
+        if normalized == ".":
+            for path, oid in sorted(tree.items()):
+                if oid is None:
+                    continue
+                data = _read_object(oid)
+                if data is None:
+                    continue
+                os.makedirs(os.path.dirname(path), exist_ok=True)
+                with open(path, "wb") as f:
+                    f.write(data)
+                restored.append(path)
+            matched = bool(restored)
+        elif normalized in tree:
+            oid = tree[normalized]
+            data = _read_object(oid)
+            if data is not None:
+                os.makedirs(os.path.dirname(normalized), exist_ok=True)
+                with open(normalized, "wb") as f:
+                    f.write(data)
+                restored.append(normalized)
+            matched = True
+        else:
+            prefix = normalized + os.sep
+            for path, oid in sorted(tree.items()):
+                if path == normalized or path.startswith(prefix):
+                    if oid is None:
+                        continue
+                    data = _read_object(oid)
+                    if data is None:
+                        continue
+                    os.makedirs(os.path.dirname(path), exist_ok=True)
+                    with open(path, "wb") as f:
+                        f.write(data)
+                    restored.append(path)
+                    matched = True
+
+        if not matched:
+            print(f"fatal: pathspec '{arg}' did not match any files")
+
+    for path in sorted(set(restored)):
+        print(f"restored {path}")
+
+
 def repo_status():
     git_dir = _git_dir()
     if not os.path.isdir(git_dir):
@@ -1055,4 +1176,4 @@ def print_welcome():
     project = os.path.basename(os.getcwd())
     print(f"Welcome to your tiny git tool for '{project}'!")
     print("Nothing important here — just a friendly hello.")
-    print("Use 'init' to create a repo, 'add' to stage files, 'rm' to remove paths, 'tag' to create or list tags, 'show' to inspect refs or objects, 'commit' to record changes, 'branch' to manage branches, 'checkout' and 'reset' to move around history, 'merge' to combine branches, and 'status', 'log', or 'diff' to inspect the repo.")
+    print("Use 'init' to create a repo, 'add' to stage files, 'rm' to remove paths, 'tag' to create or list tags, 'show' to inspect refs or objects, 'commit' to record changes, 'branch' to manage branches, 'checkout' and 'switch' to move around history, 'restore' to recover files, 'reset' to move HEAD, 'merge' to combine branches, and 'status', 'log', or 'diff' to inspect the repo.")
