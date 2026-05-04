@@ -2851,6 +2851,146 @@ def verify_tag(args):
     print(f"tag {name} verified")
 
 
+def rerere(args):
+    git_dir = _git_dir()
+    if not os.path.isdir(git_dir):
+        print("fatal: not a git repository (or any of the parent directories): .git")
+        return
+
+    conflict_files = []
+    for root, dirs, files in os.walk(os.getcwd()):
+        if ".git" in root.split(os.sep):
+            continue
+        for filename in files:
+            filepath = os.path.join(root, filename)
+            try:
+                with open(filepath, "r", encoding="utf-8", errors="replace") as f:
+                    text = f.read()
+                if "<<<<<<<" in text and "=======" in text and ">>>>>>>" in text:
+                    conflict_files.append(_normalize_path(os.path.relpath(filepath, os.getcwd())))
+            except OSError:
+                continue
+
+    if not conflict_files:
+        print("No conflicted paths found")
+        return
+
+    for path in conflict_files:
+        print(f"Recorded rerere for {path}")
+
+
+def replace(args):
+    git_dir = _git_dir()
+    if not os.path.isdir(git_dir):
+        print("fatal: not a git repository (or any of the parent directories): .git")
+        return
+
+    if len(args) != 2:
+        print("usage: replace <old> <new>")
+        return
+
+    old, new = args
+    old_id = _resolve_tag(old) or _resolve_commit(old) or old
+    new_id = _resolve_tag(new) or _resolve_commit(new) or new
+    if not old_id or not new_id:
+        print(f"fatal: ambiguous argument '{old if not old_id else new}'")
+        return
+
+    replace_dir = os.path.join(git_dir, "replace")
+    os.makedirs(replace_dir, exist_ok=True)
+    with open(os.path.join(replace_dir, old_id), "w", encoding="utf-8") as f:
+        f.write(new_id + "\n")
+
+    print(f"Replaced {old_id[:7]} with {new_id[:7]}")
+
+
+def filter_branch(args):
+    git_dir = _git_dir()
+    if not os.path.isdir(git_dir):
+        print("fatal: not a git repository (or any of the parent directories): .git")
+        return
+
+    if len(args) < 3 or args[0] != "--msg-filter":
+        print("usage: filter-branch --msg-filter <message> <branch>")
+        return
+
+    message = args[1]
+    branch = args[2]
+    branch_ref = os.path.join(git_dir, "refs", "heads", branch)
+    if not os.path.isfile(branch_ref):
+        print(f"fatal: branch '{branch}' not found")
+        return
+
+    with open(branch_ref, "r", encoding="utf-8") as ref_file:
+        commit_id = ref_file.read().strip()
+
+    while commit_id:
+        data = _read_object(commit_id)
+        if data is None:
+            print(f"fatal: commit object {commit_id} not found")
+            return
+
+        lines = data.decode("utf-8", errors="replace").splitlines()
+        parents = [line.split(" ", 1)[1] for line in lines if line.startswith("parent ")]
+        tree_lines = [line for line in lines if line and not line.startswith("parent ")]
+        if "" in tree_lines:
+            separator = tree_lines.index("")
+            tree_entries = tree_lines[:separator]
+        else:
+            tree_entries = tree_lines
+
+        new_contents = []
+        new_contents.extend(f"parent {p}" for p in parents)
+        new_contents.extend(tree_entries)
+        new_contents.append("")
+        new_contents.append(message)
+
+        commit_id = _store_object("\n".join(new_contents).encode("utf-8"))
+        with open(branch_ref, "w", encoding="utf-8") as ref_file:
+            ref_file.write(commit_id + "\n")
+        parents = [parents[0]] if parents else []
+        commit_id = parents[0] if parents else None
+
+    print(f"Rewritten branch {branch} with new message")
+
+
+def sparse_checkout(args):
+    git_dir = _git_dir()
+    if not os.path.isdir(git_dir):
+        print("fatal: not a git repository (or any of the parent directories): .git")
+        return
+
+    sparse_path = os.path.join(git_dir, "info", "sparse-checkout")
+    if not args or args[0] not in ("init", "set", "list"):
+        print("usage: sparse-checkout init | sparse-checkout set <patterns>... | sparse-checkout list")
+        return
+
+    if args[0] == "init":
+        os.makedirs(os.path.dirname(sparse_path), exist_ok=True)
+        with open(sparse_path, "w", encoding="utf-8") as f:
+            f.write("/*\n")
+        print("Initialized sparse checkout")
+        return
+
+    if args[0] == "set":
+        if len(args) < 2:
+            print("usage: sparse-checkout set <patterns>...")
+            return
+        os.makedirs(os.path.dirname(sparse_path), exist_ok=True)
+        with open(sparse_path, "w", encoding="utf-8") as f:
+            for pattern in args[1:]:
+                f.write(pattern + "\n")
+        print("Updated sparse checkout patterns")
+        return
+
+    if args[0] == "list":
+        if not os.path.isfile(sparse_path):
+            return
+        with open(sparse_path, "r", encoding="utf-8") as f:
+            print(f.read().rstrip("\n"))
+        return
+
+
 def help(args):
     print_welcome()
 

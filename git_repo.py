@@ -33,6 +33,18 @@ def _object_path(object_id):
     return os.path.join(_git_dir(), "objects", object_id)
 
 
+def _replace_path(object_id):
+    return os.path.join(_git_dir(), "replace", object_id)
+
+
+def _read_replace(object_id):
+    replace_path = _replace_path(object_id)
+    if os.path.isfile(replace_path):
+        with open(replace_path, "r", encoding="utf-8") as f:
+            return f.read().strip() or None
+    return None
+
+
 def _read_head():
     head_path = os.path.join(_git_dir(), "HEAD")
     if not os.path.isfile(head_path):
@@ -246,14 +258,20 @@ def _resolve_commit(target):
     refs_path = os.path.join(_git_dir(), "refs", "heads", target)
     if os.path.isfile(refs_path):
         with open(refs_path, "r", encoding="utf-8") as ref_file:
-            return ref_file.read().strip() or None
+            commit_id = ref_file.read().strip() or None
+        if commit_id:
+            replacement = _read_replace(commit_id)
+            return replacement or commit_id
+        return None
 
     if os.path.isfile(_object_path(target)):
-        return target
+        replacement = _read_replace(target)
+        return replacement or target
 
     for filename in os.listdir(os.path.join(_git_dir(), "objects")):
         if filename.startswith(target):
-            return filename
+            replacement = _read_replace(filename)
+            return replacement or filename
 
     return None
 
