@@ -2315,8 +2315,90 @@ def worktree(args):
         return
 
 
+def ls_files(args):
+    git_dir = _git_dir()
+    if not os.path.isdir(git_dir):
+        print("fatal: not a git repository (or any of the parent directories): .git")
+        return
+
+    if args:
+        print("usage: ls-files")
+        return
+
+    index = _read_index()
+    for path in sorted(index.keys()):
+        print(path)
+
+
+def rev_parse(args):
+    git_dir = _git_dir()
+    if not os.path.isdir(git_dir):
+        print("fatal: not a git repository (or any of the parent directories): .git")
+        return
+
+    if not args:
+        print("usage: rev-parse --abbrev-ref HEAD | rev-parse <ref>")
+        return
+
+    if args == ["--abbrev-ref", "HEAD"]:
+        branch = _current_branch()
+        if branch:
+            print(branch)
+        else:
+            print("HEAD")
+        return
+
+    if len(args) == 1:
+        name = args[0]
+        commit_id = _resolve_tag(name) or _resolve_commit(name)
+        if not commit_id:
+            print(f"fatal: ambiguous argument '{name}'")
+            return
+        print(commit_id)
+        return
+
+    print("usage: rev-parse --abbrev-ref HEAD | rev-parse <ref>")
+
+
+def cat_file(args):
+    git_dir = _git_dir()
+    if not os.path.isdir(git_dir):
+        print("fatal: not a git repository (or any of the parent directories): .git")
+        return
+
+    if len(args) != 2 or args[0] != "-p":
+        print("usage: cat-file -p <object>")
+        return
+
+    name = args[1]
+    oid = _resolve_tag(name) or _resolve_commit(name) or (name if len(name) >= 6 else None)
+    if not oid:
+        print(f"fatal: ambiguous argument '{name}'")
+        return
+
+    data = _read_object(oid)
+    if data is None:
+        print(f"fatal: object {oid} not found")
+        return
+
+    try:
+        print(data.decode("utf-8", errors="replace"))
+    except Exception:
+        import base64
+
+        print(base64.b64encode(data).decode("ascii"))
+
+
 def print_welcome():
     project = os.path.basename(os.getcwd())
     print(f"Welcome to your tiny git tool for '{project}'!")
     print("Nothing important here — just a friendly hello.")
     print("Use 'init' to create a repo, 'add' to stage files, 'rm' to remove paths, 'tag' to create or list tags, 'show' to inspect refs or objects, 'commit' to record changes, 'branch' to manage branches, 'checkout' and 'switch' to move around history, 'restore' to recover files, 'reset' to move HEAD, 'merge' to combine branches, and 'status', 'log', or 'diff' to inspect the repo.")
+
+
+def help(args):
+    print_welcome()
+
+
+def version(args):
+    print("tiny-git version 0.1")
