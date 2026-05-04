@@ -423,6 +423,40 @@ def show(args):
     print(text)
 
 
+def describe(args):
+    git_dir = _git_dir()
+    if not os.path.isdir(git_dir):
+        print("fatal: not a git repository (or any of the parent directories): .git")
+        return
+
+    if len(args) > 1:
+        print("usage: describe [<commit>]")
+        return
+
+    target = args[0] if args else None
+    commit_id = _resolve_tag(target) or _resolve_commit(target)
+    if not commit_id:
+        print(f"fatal: ambiguous argument '{target}'")
+        return
+
+    matches = []
+    refs_root = os.path.join(git_dir, "refs")
+    for root, dirs, files in os.walk(refs_root):
+        for filename in files:
+            ref_path = os.path.join(root, filename)
+            with open(ref_path, "r", encoding="utf-8") as ref_file:
+                ref_value = ref_file.read().strip()
+            if ref_value == commit_id:
+                ref_name = os.path.relpath(ref_path, refs_root)
+                matches.append(ref_name)
+
+    if matches:
+        matches.sort()
+        print(matches[0])
+    else:
+        print(commit_id[:7])
+
+
 def merge(args):
     git_dir = _git_dir()
     if not os.path.isdir(git_dir):

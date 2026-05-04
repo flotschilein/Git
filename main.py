@@ -3,7 +3,7 @@
 """Minimal welcome script for a lightweight custom git-like entrypoint."""
 
 import sys
-from commands import add_paths, branch, checkout, cherry_pick, clean, commit, config, diff, init_repo, log_history, merge, mv, print_welcome, rebase, repo_status, reset, restore, rm, revert, show, stash, switch, tag
+from commands import add_paths, branch, checkout, cherry_pick, clean, commit, config, diff, describe, init_repo, log_history, merge, mv, print_welcome, rebase, repo_status, reset, restore, rm, revert, show, stash, switch, tag
 from network_cmds import clone, push, pull, fetch, remote
 
 
@@ -34,6 +34,8 @@ def main():
             diff(sys.argv[2:])
         elif cmd == "show":
             show(sys.argv[2:])
+        elif cmd == "describe":
+            describe(sys.argv[2:])
         elif cmd == "merge":
             merge(sys.argv[2:])
         elif cmd == "stash":
@@ -66,7 +68,7 @@ def main():
             remote(sys.argv[2:])
         else:
             print(f"Unknown command: {cmd}")
-            print("Available commands: init, add, rm, tag, commit, branch, checkout, switch, restore, rebase, cherry-pick, reset, merge, stash, revert, clean, config, mv, status, log, diff, show, clone, push, pull, fetch, remote")
+            print("Available commands: init, add, rm, tag, commit, branch, checkout, switch, restore, rebase, cherry-pick, describe, reset, merge, stash, revert, clean, config, mv, status, log, diff, show, clone, push, pull, fetch, remote")
     else:
         print_welcome()
 
