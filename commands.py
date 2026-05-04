@@ -1162,6 +1162,48 @@ def rebase(args):
     print(f"Rebased current branch onto {target}")
 
 
+def grep(args):
+    git_dir = _git_dir()
+    if not os.path.isdir(git_dir):
+        print("fatal: not a git repository (or any of the parent directories): .git")
+        return
+
+    if not args:
+        print("usage: grep <pattern> [<path>...]")
+        return
+
+    pattern = args[0]
+    paths = args[1:] if len(args) > 1 else ["."]
+    matches = []
+
+    for path in paths:
+        normalized = _normalize_path(path)
+        if normalized == "":
+            normalized = "."
+
+        if os.path.isdir(normalized):
+            for root, dirs, files in os.walk(normalized):
+                if ".git" in root.split(os.sep):
+                    continue
+                for filename in files:
+                    filepath = os.path.join(root, filename)
+                    if os.path.isfile(filepath):
+                        with open(filepath, "r", encoding="utf-8", errors="replace") as f:
+                            for line_num, line in enumerate(f, start=1):
+                                if pattern in line:
+                                    matches.append(f"{_normalize_path(os.path.relpath(filepath, os.getcwd()))}:{line_num}:{line.rstrip()}")
+        elif os.path.isfile(normalized):
+            with open(normalized, "r", encoding="utf-8", errors="replace") as f:
+                for line_num, line in enumerate(f, start=1):
+                    if pattern in line:
+                        matches.append(f"{normalized}:{line_num}:{line.rstrip()}")
+        else:
+            print(f"fatal: pathspec '{path}' did not match any files or directories")
+
+    for match in matches:
+        print(match)
+
+
 def repo_status():
     git_dir = _git_dir()
     if not os.path.isdir(git_dir):
