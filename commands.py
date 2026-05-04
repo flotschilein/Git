@@ -2828,6 +2828,84 @@ def pack_refs(args):
     print(f"packed {len(lines)} refs")
 
 
+def fast_export(args):
+    git_dir = _git_dir()
+    if not os.path.isdir(git_dir):
+        print("fatal: not a git repository (or any of the parent directories): .git")
+        return
+
+    if len(args) > 1:
+        print("usage: fast-export [<commit>]")
+        return
+
+    commit_id = _resolve_commit(args[0]) if args else _current_commit_id()
+    if not commit_id:
+        print("fatal: no commits yet")
+        return
+
+    branch = _current_branch() or "HEAD"
+    mark = 1
+    while commit_id:
+        data = _read_object(commit_id)
+        if data is None:
+            print(f"fatal: commit object {commit_id} not found")
+            return
+
+        lines = data.decode("utf-8", errors="replace").splitlines()
+        parents = [line.split(" ", 1)[1] for line in lines if line.startswith("parent ")]
+        message_lines = []
+        reading_message = False
+        for line in lines:
+            if line == "":
+                reading_message = True
+                continue
+            if reading_message:
+                message_lines.append(line)
+
+        print(f"commit refs/heads/{branch}")
+        if parents:
+            for parent in parents:
+                print(f"from {parent}")
+        print(f"mark :{mark}")
+        print("data <<EOF")
+        for msg_line in message_lines:
+            print(msg_line)
+        print("EOF")
+
+        tree = _commit_tree(commit_id)
+        for path in sorted(tree):
+            oid = tree[path]
+            print(f"M 100644 {oid} {path}")
+
+        print()
+        mark += 1
+        commit_id = parents[0] if parents else None
+
+
+def pack_objects(args):
+    git_dir = _git_dir()
+    if not os.path.isdir(git_dir):
+        print("fatal: not a git repository (or any of the parent directories): .git")
+        return
+
+    if len(args) != 1:
+        print("usage: pack-objects <archive>")
+        return
+
+    archive_path = args[0]
+    try:
+        with tarfile.open(archive_path, "w:gz") as tar:
+            objects_dir = os.path.join(git_dir, "objects")
+            for root, dirs, files in os.walk(objects_dir):
+                for filename in files:
+                    filepath = os.path.join(root, filename)
+                    arcname = os.path.relpath(filepath, git_dir)
+                    tar.add(filepath, arcname=arcname)
+        print(f"packed objects into {archive_path}")
+    except Exception as exc:
+        print(f"fatal: could not write archive: {exc}")
+
+
 def verify_tag(args):
     git_dir = _git_dir()
     if not os.path.isdir(git_dir):
