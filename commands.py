@@ -6,6 +6,7 @@ import os
 import re
 import shutil
 import tarfile
+import tempfile
 
 from git_repo import (
     init_repo,
@@ -1546,6 +1547,94 @@ def archive(args):
         print(f"fatal: could not create archive: {exc}")
 
 
+def _collect_bundle_objects(commit_id, collected):
+    if commit_id in collected:
+        return
+    data = _read_object(commit_id)
+    if data is None:
+        return
+    collected.add(commit_id)
+
+    lines = data.decode("utf-8", errors="replace").splitlines()
+    for line in lines:
+        if line.startswith("parent "):
+            _collect_bundle_objects(line.split(" ", 1)[1], collected)
+        elif line == "":
+            break
+        elif " " in line:
+            oid, _ = line.split(" ", 1)
+            _collect_bundle_objects(oid, collected)
+
+
+def bundle(args):
+    git_dir = _git_dir()
+    if not os.path.isdir(git_dir):
+        print("fatal: not a git repository (or any of the parent directories): .git")
+        return
+
+    if not args or args[0] not in ("create", "list"):
+        print("usage: bundle create <file> <commit>... | bundle list <file>")
+        return
+
+    action = args[0]
+    if action == "list":
+        if len(args) != 2:
+            print("usage: bundle list <file>")
+            return
+        bundle_path = args[1]
+        if not os.path.isfile(bundle_path):
+            print(f"fatal: bundle '{bundle_path}' not found")
+            return
+        try:
+            with tarfile.open(bundle_path, "r:gz") as tar:
+                try:
+                    member = tar.getmember("bundle-commits.txt")
+                    f = tar.extractfile(member)
+                    if f:
+                        for line in f.read().decode("utf-8").splitlines():
+                            print(line)
+                except KeyError:
+                    print("fatal: invalid bundle")
+        except Exception as exc:
+            print(f"fatal: could not read bundle: {exc}")
+        return
+
+    if action == "create":
+        if len(args) < 3:
+            print("usage: bundle create <file> <commit>...")
+            return
+
+        bundle_path = args[1]
+        commit_ids = []
+        for target in args[2:]:
+            commit_id = _resolve_tag(target) or _resolve_commit(target)
+            if not commit_id:
+                print(f"fatal: ambiguous argument '{target}'")
+                return
+            commit_ids.append(commit_id)
+
+        object_ids = set()
+        for commit_id in commit_ids:
+            _collect_bundle_objects(commit_id, object_ids)
+
+        try:
+            with tarfile.open(bundle_path, "w:gz") as tar:
+                commit_data = "\n".join(commit_ids).encode("utf-8")
+                info = tarfile.TarInfo(name="bundle-commits.txt")
+                info.size = len(commit_data)
+                tar.addfile(info, fileobj=io.BytesIO(commit_data))
+                for oid in sorted(object_ids):
+                    obj_data = _read_object(oid)
+                    if obj_data is None:
+                        continue
+                    info = tarfile.TarInfo(name=os.path.join("objects", oid))
+                    info.size = len(obj_data)
+                    tar.addfile(info, fileobj=io.BytesIO(obj_data))
+            print(f"created bundle {bundle_path}")
+        except Exception as exc:
+            print(f"fatal: could not create bundle: {exc}")
+
+
 def _bisect_dir():
     return os.path.join(_git_dir(), "bisect")
 
@@ -1681,6 +1770,48 @@ def apply(args):
         with open(path, "w", encoding="utf-8", newline="") as f:
             f.writelines(result)
         print(f"Applied patch to {path}")
+
+
+def am(args):
+    if len(args) != 1:
+        print("usage: am <mbox-file>")
+        return
+
+    mbox_path = args[0]
+    if not os.path.isfile(mbox_path):
+        print(f"fatal: patch file '{mbox_path}' not found")
+        return
+
+    with open(mbox_path, "r", encoding="utf-8", errors="replace") as f:
+        lines = f.readlines()
+
+    patches = []
+    current = []
+    for line in lines:
+        if line.startswith("From ") and current:
+            patches.append("".join(current))
+            current = []
+            continue
+        current.append(line)
+    if current:
+        patches.append("".join(current))
+
+    if not patches:
+        print("fatal: no patch content")
+        return
+
+    for idx, patch_text in enumerate(patches, start=1):
+        with tempfile.NamedTemporaryFile("w", encoding="utf-8", delete=False) as tmp:
+            tmp.write(patch_text)
+            tmp_path = tmp.name
+        try:
+            apply([tmp_path])
+        finally:
+            try:
+                os.remove(tmp_path)
+            except OSError:
+                pass
+        print(f"Applied patch {idx} from mbox")
 
 
 def bisect(args):

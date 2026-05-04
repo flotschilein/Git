@@ -3,7 +3,7 @@
 """Minimal welcome script for a lightweight custom git-like entrypoint."""
 
 import sys
-from commands import add_paths, apply, archive, blame, bisect, branch, checkout, cherry_pick, clean, commit, config, diff, describe, grep, init_repo, log_history, merge, mv, print_welcome, rebase, reflog, repo_status, reset, restore, rm, revert, show, stash, switch, tag, worktree
+from commands import add_paths, am, apply, archive, blame, bisect, branch, bundle, checkout, cherry_pick, clean, commit, config, diff, describe, grep, init_repo, log_history, merge, mv, print_welcome, rebase, reflog, repo_status, reset, restore, rm, revert, show, stash, switch, tag, worktree
 from network_cmds import clone, push, pull, fetch, remote
 
 
@@ -36,8 +36,12 @@ def main():
             grep(sys.argv[2:])
         elif cmd == "archive":
             archive(sys.argv[2:])
+        elif cmd == "am":
+            am(sys.argv[2:])
         elif cmd == "apply":
             apply(sys.argv[2:])
+        elif cmd == "bundle":
+            bundle(sys.argv[2:])
         elif cmd == "bisect":
             bisect(sys.argv[2:])
         elif cmd == "worktree":
@@ -82,7 +86,7 @@ def main():
             remote(sys.argv[2:])
         else:
             print(f"Unknown command: {cmd}")
-            print("Available commands: init, add, rm, tag, commit, branch, checkout, switch, restore, rebase, cherry-pick, describe, grep, archive, apply, bisect, worktree, blame, reflog, reset, merge, stash, revert, clean, config, mv, status, log, diff, show, clone, push, pull, fetch, remote")
+            print("Available commands: init, add, rm, tag, commit, branch, checkout, switch, restore, rebase, cherry-pick, describe, grep, archive, am, apply, bundle, bisect, worktree, blame, reflog, reset, merge, stash, revert, clean, config, mv, status, log, diff, show, clone, push, pull, fetch, remote")
     else:
         print_welcome()
 
